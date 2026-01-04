@@ -1,0 +1,20 @@
+apiVersion: v2
+name: home-assistant
+description: Helm Chart for Home Assistant on Kubernetes
+type: application
+version: 1.0.0
+appVersion: "2025.12.2"
+kubeVersion: ">=1.16.0-0"
+keywords:
+  - home-assistant
+  - hass
+  - homeassistant
+home: https://www.home-assistant.io/
+icon: https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Home_Assistant_Logo.svg/519px-Home_Assistant_Logo.svg.png
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/home-assistant
+  - https://github.com/home-assistant/core
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "myspeed.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "myspeed.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "myspeed.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicaCount | int }}
+  {{- $updateStrategy := .Values.updateStrategy }}
+  {{- if and $updateStrategy (kindIs "map" $updateStrategy) (hasKey $updateStrategy "type") }}
+  # User-defined update strategy
+  strategy:
+    {{- toYaml $updateStrategy | nindent 4 }}
+  {{- else if .Values.persistence.enabled }}
+  # Default strategy for ReadWriteOnce PVCs: terminate old pod before starting new one
+  # This prevents Multi-Attach errors by ensuring old pod terminates before new one starts
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "myspeed.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "myspeed.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: myspeed-data
+              mountPath: /myspeed/data
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: myspeed-data
+          persistentVolumeClaim:
+            claimName: {{ include "myspeed.pvcName" . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
