@@ -1,0 +1,22 @@
+apiVersion: v2
+name: affine
+description: A Helm chart for AFFiNE, a privacy-focused, local-first, open-source knowledge base
+type: application
+version: 1.0.7
+appVersion: "0.25.7"
+kubeVersion: ">=1.19.0"
+keywords:
+  - affine
+  - knowledge-base
+  - collaboration
+  - notes
+  - workspace
+home: https://affine.pro/
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/affine
+  - https://github.com/toeverything/AFFiNE
+  - https://github.com/toeverything/docker
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

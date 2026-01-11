@@ -1,0 +1,24 @@
+1. Get the tunnel status by running:
+  kubectl --namespace {{ .Release.Namespace }} get deployment {{ .Release.Name }}
+
+2. View logs:
+  kubectl --namespace {{ .Release.Namespace }} logs -l app={{ .Release.Name }}
+
+{{- if .Values.metrics.enabled }}
+3. Access metrics:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-metrics {{ .Values.metrics.port }}:{{ .Values.metrics.port }}
+  Visit http://127.0.0.1:{{ .Values.metrics.port }}/metrics
+{{- end }}
+
+{{- if .Values.local.enabled }}
+4. Check tunnel configuration:
+  kubectl --namespace {{ .Release.Namespace }} get configmap {{ .Release.Name }}
+  kubectl --namespace {{ .Release.Namespace }} get secret {{ default "tunnel-secret" .Values.local.auth.existingSecret }}
+{{- end }}
+
+{{- if .Values.managed.enabled }}
+4. Check managed tunnel token:
+  kubectl --namespace {{ .Release.Namespace }} get secret {{ .Values.managed.existingSecret }}
+{{- end }}
+
+Note: Secrets and IngressRoute are managed separately via Kustomize for better flexibility.
