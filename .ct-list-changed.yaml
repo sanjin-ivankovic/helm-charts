@@ -1,0 +1,21 @@
+---
+# Chart Testing (ct) Configuration for list-changed
+# This config disables version increment checking for change detection
+# Version checking is still enforced during linting via .ct.yaml
+
+# Directories containing Helm charts
+chart-dirs:
+  - charts
+
+# Git remote to use for detecting changes
+remote: origin
+
+# Target branch for detecting changes
+target-branch: main
+
+# Disable version increment check for change detection
+# This allows detecting all changed charts, not just those with version bumps
+check-version-increment: false
+
+# Validate maintainers in Chart.yaml
+validate-maintainers: false

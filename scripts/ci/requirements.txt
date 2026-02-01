@@ -1,0 +1,16 @@
+# Python dependencies for CI scripts
+# These are installed in the CI Docker image
+
+# Core dependencies
+pyyaml>=6.0.1
+tqdm>=4.66.0
+
+# Testing framework
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# HTTP client (for future metrics script)
+requests>=2.32.0
+
+# Linting tools (installed via pip)
+yamllint==1.37.1
