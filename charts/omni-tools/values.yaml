@@ -1,0 +1,49 @@
+## Default values for Omni-Tools
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.imagePullPolicy The logic of image pulling.
+##
+image:
+  repository: iib0011/omni-tools
+  tag: "0.6.0@sha256:ceb5acc317daf387634f7f212cefe4722fd1243ad1cba74203f25254195b6c69"
+  imagePullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+##
+replicaCount: 1
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement (empty object = no node selector).
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param securityContext Security context for the pod.
+##
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "256Mi"
+    cpu: "200m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+securityContext: {}
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80

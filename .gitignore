@@ -1,0 +1,199 @@
+# ==============================================================================
+# Helm Chart Development Repository - .gitignore
+# ==============================================================================
+# This repository contains custom Helm charts published to OCI registry.
+# Charts are packaged and pushed to: oci://registry.example.com/homelab/helm-charts
+# ==============================================================================
+
+# ==============================================================================
+# OS Files
+# ==============================================================================
+
+# macOS
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.TemporaryItems
+.DocumentRevisions-V100
+.fseventsd
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+
+# Linux
+.directory
+.Trash-*
+.nfs*
+
+# ==============================================================================
+# IDE & Editor Files
+# ==============================================================================
+
+# VSCode (keep settings)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ IDEA / PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+\#*\#
+.\#*
+
+# Sublime
+*.sublime-project
+*.sublime-workspace
+
+# ==============================================================================
+# Helm Chart Development
+# ==============================================================================
+
+# Helm package archives (generated during build/release)
+*.tgz
+
+# Helm dependency charts (downloaded via 'helm dependency update')
+charts/*/charts/
+**/charts/*.tgz
+
+# Helm lock files
+# NOTE: Chart.lock should typically be committed for reproducible builds
+# Uncomment the line below if you prefer to gitignore it:
+# Chart.lock
+
+# Helm values override files (local development/testing)
+values-local.yaml
+values-override.yaml
+values-dev.yaml
+values-test.yaml
+**/values-local.yaml
+**/values-override.yaml
+**/values-dev.yaml
+**/values-test.yaml
+
+# Helm rendered output (from 'helm template' or 'helm install --dry-run')
+rendered/
+output/
+dist/
+
+# ==============================================================================
+# Secret Management
+# ==============================================================================
+
+# Environment files
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Plaintext secret files
+secrets.yaml
+**/secrets.yaml
+*-secrets.yaml
+*.secret
+
+# Certificate and key files
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*.cer
+*.der
+*.csr
+
+# SSH keys
+*_rsa
+*_ed25519
+*_ecdsa
+*_dsa
+id_*
+!id_*.example
+
+# ==============================================================================
+# Build Artifacts & Temporary Files
+# ==============================================================================
+
+# Package directory (for locally built charts)
+.packages/
+packages/
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+logs/
+*.log.*
+
+# ==============================================================================
+# Testing & Validation
+# ==============================================================================
+
+# Chart testing reports
+tools/sanitize/reports/
+test-results/
+
+# Kubeconform/kubeval output
+validation-output/
+
+# ct (Chart Testing) output
+.ct/
+
+# ==============================================================================
+# GitLab CI/CD Artifacts
+# ==============================================================================
+
+# GitLab reports
+gl-code-quality-report.json
+gl-secret-detection-report.json
+security-findings.json
+*.sarif
+
+# Child pipeline artifacts
+child-pipeline.yml
+
+# ==============================================================================
+# Project-Specific Artifacts
+# ==============================================================================
+
+# Archived charts (intentionally not published)
+_archive/
+
+# Local cache directories
+.cache/
+.renovate-cache/
+
+# Cursor IDE
+.cursor/

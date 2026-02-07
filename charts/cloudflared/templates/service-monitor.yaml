@@ -1,0 +1,21 @@
+{{- if and .Values.metrics.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor") }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    {{- include "cloudflared.labels" . | nindent 4 }}
+  name: {{ include "cloudflared.fullname" . }}-servicemonitor
+  namespace: {{ .Release.Namespace }}
+spec:
+  jobLabel: app.kubernetes.io/name
+  endpoints:
+    - targetPort: metrics
+      path: /metrics
+  selector:
+    matchLabels:
+      {{- include "cloudflared.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}
