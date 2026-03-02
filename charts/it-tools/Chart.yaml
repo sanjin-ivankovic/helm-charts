@@ -1,0 +1,19 @@
+apiVersion: v2
+name: it-tools
+description: A Helm chart for IT Tools on Kubernetes
+type: application
+version: 1.0.0
+appVersion: "2024.10.22-7ca5933"
+kubeVersion: ">=1.19.0"
+keywords:
+  - it-tools
+  - utilities
+  - tools
+home: https://github.com/CorentinTh/it-tools
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/it-tools
+  - https://github.com/CorentinTh/it-tools
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

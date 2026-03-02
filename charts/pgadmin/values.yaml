@@ -1,0 +1,221 @@
+## Default values for pgadmin
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.pullPolicy The image pull policy.
+## @param image.tag The image tag to use (overrides chart appVersion).
+##
+image:
+  repository: dpage/pgadmin4
+  pullPolicy: IfNotPresent
+  tag: "9.12.0@sha256:10137f33be7ed61e47f56004493710cb5b80ba7fb0ca01758855e242f1f284a7"
+
+## @param imagePullSecrets List of image pull secrets for private image repositories.
+##
+imagePullSecrets: []
+
+## @param nameOverride Override the default name of the Helm chart.
+## @param fullnameOverride Override the default full name of the Helm chart.
+##
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Service Account parameters
+
+## @param serviceAccount.create Specifies whether a service account should be created.
+## @param serviceAccount.annotations Annotations to add to the service account.
+## @param serviceAccount.name The name of the service account to use. If not set and create is true, a name is generated using the fullname template.
+##
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+##
+replicaCount: 1
+
+## @param podAnnotations Annotations to add to the pod.
+##
+podAnnotations: {}
+
+## @param updateStrategy The update strategy for the deployment. If not set and persistence is enabled, defaults to RollingUpdate with maxSurge: 0, maxUnavailable: 1 to prevent Multi-Attach errors.
+## @param deploymentStrategy The deployment strategy type (RollingUpdate or Recreate). Used as fallback when updateStrategy is not set and persistence is disabled.
+##
+updateStrategy: {}
+deploymentStrategy: RollingUpdate
+
+## @param deploymentAnnotations Annotations to add to the deployment.
+##
+deploymentAnnotations: {}
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the container.
+## @param nodeSelector Node selector for scheduling the pod on specific nodes (empty object = no node selector).
+## @param affinity Affinity settings for controlling pod scheduling.
+## @param tolerations Tolerations for scheduling the pod based on node taints.
+## @param securityContext Security context for the container.
+## @param podSecurityContext Security context for the pod.
+## @param priorityClassName Priority class name to set on pgAdmin pods.
+## @param dnsConfig Pod's DNS configuration.
+##
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+securityContext: {}
+podSecurityContext: {}
+priorityClassName: ""
+dnsConfig: {}
+
+## @section Init Container parameters
+
+## @param initContainer.enabled Enable init container to fix permissions.
+## @param initContainer.image Image settings for the init container.
+##
+initContainer:
+  enabled: true
+  image:
+    repository: busybox
+    tag: "1.37@sha256:b3255e7dfbcd10cb367af0d409747d511aeb66dfac98cf30e97e87e4207dd76f"
+    pullPolicy: IfNotPresent
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type (ClusterIP, NodePort, LoadBalancer, or ExternalName).
+## @param service.port The service port.
+## @param service.annotations Annotations to add to the service.
+##
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+## @section Ingress parameters
+
+## @param ingress.enabled Enable ingress for pgAdmin.
+## @param ingress.className The ingress class name.
+## @param ingress.labels Labels to add to the ingress.
+## @param ingress.annotations Annotations to add to the ingress.
+## @param ingress.hosts List of ingress hosts configuration.
+## @param ingress.tls TLS configuration for the ingress.
+##
+ingress:
+  enabled: false
+  className: ""
+  labels: {}
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable or disable persistence.
+## @param persistence.accessMode Access mode for the persistent volume claim.
+## @param persistence.size Size of the persistent volume claim.
+## @param persistence.storageClass Storage class for the persistent volume claim.
+## @param persistence.existingClaim Name of the existing PVC to use. This option can be used to use an existing PVC.
+## @param persistence.annotations Annotations to add to the persistent volume claim.
+## @param persistence.matchLabels Persistent Volume selectors (matchLabels).
+## @param persistence.matchExpressions Persistent Volume selectors (matchExpressions).
+## @param additionalVolumes List of additional volumes to mount.
+## @param additionalMounts List of additional volume mounts.
+##
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 2Gi
+  storageClass: ""
+  existingClaim: ""
+  annotations: {}
+  matchLabels: {}
+  matchExpressions: {}
+
+additionalVolumes: []
+
+additionalMounts: []
+
+## @section Application-specific parameters
+
+## @section Environment parameters
+
+## @param env List of environment variables to set in the container.
+## @param envFrom List of environment variables from ConfigMaps or Secrets.
+##
+env: []
+# Additional environment variables can be added here
+# - name: PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED
+#   value: "False"
+
+envFrom: []
+# - configMapRef:
+#     name: config-map-name
+# - secretRef:
+#     name: secret-name
+
+## @section pgAdmin Configuration parameters
+
+## @param pgadmin.email Admin email (required if secret is not provided).
+## @param pgadmin.password Admin password (required if secret is not provided).
+## @param pgadmin.existingSecret Existing secret containing email and password. The secret should have keys 'email' and 'password'.
+## @param pgadmin.serverMode Server mode configuration.
+## @param pgadmin.enhancedCookieProtection Enhanced cookie protection.
+## @param pgadmin.listenPort Listen port for pgAdmin.
+##
+pgadmin:
+  email: ""
+  password: ""
+  existingSecret: "pgadmin-admin-secret"
+  serverMode: true
+  enhancedCookieProtection: true
+  listenPort: 80
+
+## @section Health Probe parameters
+
+## @param livenessProbe Liveness probe configuration.
+## @param readinessProbe Readiness probe configuration.
+## @param startupProbe Startup probe configuration.
+##
+livenessProbe:
+  httpGet:
+    path: /misc/ping
+    port: 80
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /misc/ping
+    port: 80
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+startupProbe: {}
+  # initialDelaySeconds: 10
+  # periodSeconds: 5
+  # timeoutSeconds: 3
+  # failureThreshold: 10
+  # httpGet:
+  #   path: /misc/ping
+  #   port: 80

@@ -1,0 +1,19 @@
+apiVersion: v2
+name: myspeed
+description: A Helm chart for MySpeed on Kubernetes
+type: application
+version: 1.0.1
+appVersion: "1.0.9"
+kubeVersion: ">=1.19.0"
+keywords:
+  - myspeed
+  - utilities
+  - speed-test
+home: https://github.com/germannewsmaker/myspeed
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/myspeed
+  - https://github.com/germannewsmaker/myspeed
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

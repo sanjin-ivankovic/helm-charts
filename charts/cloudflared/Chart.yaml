@@ -1,0 +1,20 @@
+apiVersion: v2
+name: cloudflared
+description: A Helm chart for Cloudflare Tunnel (cloudflared) on Kubernetes
+type: application
+version: 1.0.0
+appVersion: "2026.2.0"
+kubeVersion: ">=1.19.0"
+keywords:
+  - cloudflare
+  - tunnel
+  - cloudflared
+  - networking
+home: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/cloudflared
+  - https://github.com/cloudflare/cloudflared
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

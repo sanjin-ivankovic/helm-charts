@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloudflared.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cloudflared.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "cloudflared.selectorLabels" . | nindent 6 }}
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount | int }}
+  {{- end }}
+  {{- $updateStrategy := .Values.updateStrategy }}
+  {{- if and $updateStrategy (kindIs "map" $updateStrategy) (hasKey $updateStrategy "type") }}
+  # User-defined update strategy
+  strategy:
+    {{- toYaml $updateStrategy | nindent 4 }}
+  {{- else if and (hasKey .Values "persistence") .Values.persistence.enabled }}
+  # Default strategy for ReadWriteOnce PVCs: terminate old pod before starting new one
+  # This prevents Multi-Attach errors by ensuring old pod terminates before new one starts
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "cloudflared.selectorLabels" . | nindent 8 }}
+      {{- if .Values.local.enabled }}
+      annotations:
+        checksum/tunnel-id: {{ sha256sum .Values.local.auth.tunnelID }}
+        checksum/ingress: {{ .Values.local.ingress | toJson | sha256sum }}
+        checksum/auth: {{ .Values.local.auth | toJson | sha256sum }}
+        checksum/warp-routing: {{ .Values.local.warpRouting | toJson | sha256sum }}
+      {{- end }}
+    spec:
+      containers:
+      - args:
+        - tunnel
+        - --no-autoupdate
+        {{- if .Values.metrics.enabled }}
+        - --metrics
+        - "0.0.0.0:{{ .Values.metrics.port }}"
+        {{ end }}
+        {{- if .Values.logLevel }}
+        - --loglevel
+        - {{ .Values.logLevel }}
+        {{- end }}
+        {{- if .Values.local.enabled }}
+        - --config
+        - /etc/cloudflared/config.yaml
+        - run
+        {{- else if .Values.managed.enabled }}
+        - run
+        - --token
+        - $(CF_MANAGED_TUNNEL_TOKEN)
+        {{- end }}
+        name: {{ include "cloudflared.name" . }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+        {{- if .Values.managed.enabled }}
+        env:
+        - name: CF_MANAGED_TUNNEL_TOKEN
+          {{- if .Values.managed.existingSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.managed.existingSecret }}
+              key: cf-tunnel-token
+          {{- else }}
+          value: {{ .Values.managed.token }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.metrics.enabled }}
+        ports:
+         - name: metrics
+           containerPort: {{ .Values.metrics.port }}
+        {{ end }}
+        {{- if .Values.local.enabled }}
+        volumeMounts:
+        - mountPath: /etc/cloudflared/tunnel-config.json
+          name: tunnel-secret-volume
+          subPath: tunnel-config.json
+        - mountPath: /etc/cloudflared/config.yaml
+          name: cloudflared-config-volume
+          subPath: config.yaml
+        {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.local.enabled }}
+      volumes:
+      - name: tunnel-secret-volume
+        secret:
+          defaultMode: 420
+          optional: false
+          secretName: {{ default "tunnel-secret" .Values.local.auth.existingSecret }}
+      - name: cloudflared-config-volume
+        configMap:
+          defaultMode: 420
+          name: {{ include "cloudflared.fullname" . }}
+          optional: false
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

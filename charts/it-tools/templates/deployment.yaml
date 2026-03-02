@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "it-tools.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "it-tools.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "it-tools.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicaCount | int }}
+  {{- with .Values.updateStrategy }}
+  # User-defined update strategy
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "it-tools.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "it-tools.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

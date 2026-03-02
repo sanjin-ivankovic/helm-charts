@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "stirling-pdf.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stirling-pdf.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount | int }}
+  selector:
+    matchLabels:
+      {{- include "stirling-pdf.selectorLabels" . | nindent 6 }}
+  {{- $updateStrategy := .Values.updateStrategy }}
+  {{- if and $updateStrategy (kindIs "map" $updateStrategy) (hasKey $updateStrategy "type") }}
+  # User-defined update strategy
+  strategy:
+    {{- toYaml $updateStrategy | nindent 4 }}
+  {{- else if .Values.persistence.enabled }}
+  # Default strategy for ReadWriteOnce PVCs: terminate old pod before starting new one
+  # This prevents Multi-Attach errors by ensuring old pod terminates before new one starts
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "stirling-pdf.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "stirling-pdf.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- if .Values.oidc.enabled }}
+            - name: SECURITY_OAUTH2_ENABLED
+              value: "true"
+            - name: SECURITY_OAUTH2_AUTOCREATEUSER
+              value: {{ .Values.oidc.autoCreateUser | quote }}
+            - name: SECURITY_OAUTH2_ISSUER
+              value: {{ .Values.oidc.issuer | quote }}
+            - name: SECURITY_OAUTH2_PROVIDER
+              value: {{ .Values.oidc.provider | quote }}
+            - name: SECURITY_OAUTH2_SCOPES
+              value: "openid,profile,email"
+            - name: SECURITY_OAUTH2_USEASUSERNAME
+              value: {{ if .Values.oidc.useEmailAsUsername }}"email"{{ else }}"sub"{{ end }}
+            - name: SECURITY_OAUTH2_CLIENTID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oidc.secretName }}
+                  key: clientId
+            - name: SECURITY_OAUTH2_CLIENTSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oidc.secretName }}
+                  key: clientSecret
+            {{- end }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: stirling-pdf-data
+              mountPath: /configs
+              readOnly: false
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+              readOnly: false
+            - name: logs
+              mountPath: /logs
+              readOnly: false
+            - name: customfiles
+              mountPath: /customFiles
+              readOnly: false
+            - name: pipeline
+              mountPath: /pipeline
+              readOnly: false
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: stirling-pdf-data
+          persistentVolumeClaim:
+            claimName: {{ include "stirling-pdf.pvcName" . }}
+        {{- end }}
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        - name: customfiles
+          emptyDir: {}
+        - name: pipeline
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

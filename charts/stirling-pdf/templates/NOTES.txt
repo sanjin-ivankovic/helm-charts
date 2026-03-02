@@ -1,0 +1,29 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+  $ helm get all {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Application: Stirling PDF
+Version: {{ .Chart.AppVersion }}
+
+Stirling PDF is a locally hosted web application that allows you to perform various operations on PDF files.
+
+To access the application:
+
+1. Port-forward to the service:
+   kubectl port-forward svc/{{ include "stirling-pdf.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+2. Open your browser to http://localhost:8080
+
+3. Check the deployment status:
+   kubectl get deployments -n {{ .Release.Namespace }}
+   kubectl get pods -n {{ .Release.Namespace }}
+
+4. View logs:
+   kubectl logs -f deployment/{{ include "stirling-pdf.fullname" . }} -n {{ .Release.Namespace }}
+
+Note: Ingress/IngressRoute is managed separately in your ArgoCD applications.

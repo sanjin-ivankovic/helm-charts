@@ -1,0 +1,76 @@
+## Default values for MySpeed
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.imagePullPolicy The logic of image pulling.
+##
+image:
+  repository: germannewsmaker/myspeed
+  tag: "1.0.9@sha256:3a3e774b3f78d930a5a962d625b99bcb3d71730bfeb4a6b93e04fd38cfe7d9a9"
+  imagePullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+replicaCount: 1
+# updateStrategy: If not set (null) and persistence is enabled, defaults to RollingUpdate with maxSurge: 0
+# This ensures old pod terminates before new one starts (required for ReadWriteOnce PVCs)
+# To override, uncomment and customize:
+# updateStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 0
+#     maxUnavailable: 1
+# Or use Recreate strategy for zero-downtime tolerance:
+# updateStrategy:
+#   type: Recreate
+updateStrategy: null
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param securityContext Security context for the pod.
+##
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+securityContext: {}
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 5216
+  targetPort: 5216
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claim.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.size Size of the persistent volume.
+## @param persistence.accessModes Access modes for the PVC.
+##
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce

@@ -1,0 +1,135 @@
+## Default values for Stirling PDF
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.imagePullPolicy The logic of image pulling.
+##
+image:
+  repository: stirlingtools/stirling-pdf
+  tag: "2.5.3@sha256:cc287bb47ad754ce052ee3c35d023f753532cbbde63dffc6abb150f338ed41ce"
+  imagePullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+replicaCount: 1
+# updateStrategy: If not set (null) and persistence is enabled, defaults to RollingUpdate with maxSurge: 0
+# This ensures old pod terminates before new one starts (required for ReadWriteOnce PVCs)
+updateStrategy: null
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+##
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+
+## @section Security Context parameters
+
+## @param podSecurityContext Security context for the pod.
+## @param containerSecurityContext Security context for the container.
+##
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  readOnlyRootFilesystem: false
+  privileged: false
+  allowPrivilegeEscalation: false
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claim.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.size Size of the persistent volume.
+## @param persistence.accessModes Access modes for the PVC.
+##
+persistence:
+  enabled: true
+  storageClass: "longhorn"
+  size: 2Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Application-specific parameters
+
+## @section Environment Variables
+
+## @param env.DOCKER_ENABLE_SECURITY Set to false to disable login functionality.
+## @param env.SECURITY_ENABLELOGIN Enable login (true/false).
+## @param env.SYSTEM_DEFAULTLOCALE Default locale for the application.
+##
+env:
+  DOCKER_ENABLE_SECURITY: "true"
+  SECURITY_ENABLELOGIN: "true"
+  SYSTEM_DEFAULTLOCALE: "en-US"
+
+## @section OIDC Authentication
+
+## @param oidc.enabled Enable OIDC authentication (requires SealedSecret).
+## @param oidc.issuer OIDC issuer URL.
+## @param oidc.provider OIDC provider name.
+## @param oidc.autoCreateUser Automatically create users on first login.
+## @param oidc.useEmailAsUsername Use email as username.
+## @param oidc.secretName Name of the SealedSecret containing client credentials.
+##
+oidc:
+  enabled: false # (disabled due to licensing issues)
+  issuer: ""
+  provider: "oidc"
+  autoCreateUser: true
+  useEmailAsUsername: true
+  secretName: "stirling-pdf-oidc"
+
+## @section Health Probes
+
+## @param livenessProbe Liveness probe configuration.
+## @param readinessProbe Readiness probe configuration.
+##
+## Note: Using TCP probes instead of HTTP to avoid authentication issues
+## when SECURITY_ENABLELOGIN is enabled. TCP probe verifies port 8080 is
+## listening without requiring authentication.
+##
+livenessProbe:
+  tcpSocket:
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  tcpSocket:
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3

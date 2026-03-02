@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pgadmin.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pgadmin.labels" . | nindent 4 }}
+{{- if .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml .Values.deploymentAnnotations | nindent 4 }}
+{{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pgadmin.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicaCount }}
+  {{- $updateStrategy := .Values.updateStrategy }}
+  {{- if and $updateStrategy (kindIs "map" $updateStrategy) (hasKey $updateStrategy "type") }}
+  # User-defined update strategy
+  strategy:
+    {{- toYaml $updateStrategy | nindent 4 }}
+  {{- else if .Values.persistence.enabled }}
+  # Default strategy for ReadWriteOnce PVCs: terminate old pod before starting new one
+  # This prevents Multi-Attach errors by ensuring old pod terminates before new one starts
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  {{- else }}
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "pgadmin.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "pgadmin.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if and .Values.initContainer.enabled .Values.persistence.enabled }}
+      initContainers:
+        - name: fix-permissions
+          image: "{{ .Values.initContainer.image.repository }}:{{ .Values.initContainer.image.tag }}"
+          imagePullPolicy: {{ .Values.initContainer.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              chown -R 5050:5050 /var/lib/pgadmin
+              chmod -R 755 /var/lib/pgadmin
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: pgadmin-data
+              mountPath: /var/lib/pgadmin
+      {{- end }}
+      containers:
+        - name: {{ include "pgadmin.name" . }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if .Values.pgadmin.existingSecret }}
+            - name: PGADMIN_DEFAULT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.pgadmin.existingSecret }}
+                  key: email
+            - name: PGADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.pgadmin.existingSecret }}
+                  key: password
+            {{- else }}
+            - name: PGADMIN_DEFAULT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pgadmin.fullname" . }}-admin-secret
+                  key: email
+            - name: PGADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pgadmin.fullname" . }}-admin-secret
+                  key: password
+            {{- end }}
+            - name: PGADMIN_CONFIG_SERVER_MODE
+              value: {{ .Values.pgadmin.serverMode | toString | title | quote }}
+            - name: PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION
+              value: {{ .Values.pgadmin.enhancedCookieProtection | toString | title | quote }}
+            - name: PGADMIN_LISTEN_PORT
+              value: {{ .Values.pgadmin.listenPort | quote }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.pgadmin.listenPort }}
+              protocol: TCP
+          {{- with $.Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - mountPath: /var/lib/pgadmin
+              name: pgadmin-data
+            {{- end }}
+            {{- if .Values.additionalMounts }}
+            {{- .Values.additionalMounts | toYaml | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        {{- if .Values.persistence.existingClaim }}
+        - name: pgadmin-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+        {{- else }}
+        - name: pgadmin-data
+          persistentVolumeClaim:
+            claimName: {{ include "pgadmin.pvcName" . }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.additionalVolumes }}
+        {{- .Values.additionalVolumes | toYaml | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- if .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml .Values.dnsConfig | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,26 @@
+---
+# Chart Testing (ct) Configuration
+# https://github.com/helm/chart-testing
+
+# Directories containing Helm charts (industry standard structure)
+chart-dirs:
+  - charts
+
+# Git remote to use for detecting changes
+remote: origin
+
+# Target branch for detecting changes
+target-branch: main
+
+# Check if chart version has been incremented
+check-version-increment: true
+
+# Validate maintainers in Chart.yaml
+validate-maintainers: false
+
+# Additional Helm lint arguments
+helm-lint-extra-args: --strict
+
+# Disable schema validation (helm lint --strict is sufficient)
+validate-chart-schema: false
+validate-yaml: false
