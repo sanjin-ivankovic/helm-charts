@@ -1,0 +1,20 @@
+apiVersion: v2
+name: stirling-pdf
+description: A Helm chart for Stirling PDF on Kubernetes
+type: application
+version: 1.0.1
+appVersion: "2.4.6"
+kubeVersion: ">=1.19.0"
+keywords:
+  - stirling-pdf
+  - pdf
+  - pdf-tools
+  - document-management
+home: https://github.com/Stirling-Tools/Stirling-PDF
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/stirling-pdf
+  - https://github.com/Stirling-Tools/Stirling-PDF
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

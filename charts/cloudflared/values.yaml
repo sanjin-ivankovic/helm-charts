@@ -1,0 +1,127 @@
+## Default values for Cloudflared
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.imagePullPolicy The logic of image pulling.
+##
+image:
+  repository: cloudflare/cloudflared
+  tag: "2026.2.0@sha256:404528c1cd63c3eb882c257ae524919e4376115e6fe57befca8d603656a91a4c"
+  imagePullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+replicaCount: 1
+updateStrategy: {}
+# updateStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 1
+#     maxUnavailable: 0
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity If specified, the pod's scheduling constraints. Affinity is a group of affinity scheduling rules.
+## @param tolerations Tolerates any taint that matches the triple `<key,value,effect>` using the matching operator `<operator>`.
+## @param topologySpreadConstraints Control how pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains.
+## @param securityContext Security context for the pod.
+## @param priorityClassName The priority class name to use for the tunnel.
+##
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+securityContext: {}
+# securityContext:
+#   runAsNonRoot: true
+#   runAsUser: 65534
+#   fsGroup: 65534
+priorityClassName: ""
+
+## @section Service parameters
+
+## Note: Cloudflared uses a metrics service defined in templates/service.yaml
+
+## @section Application-specific parameters
+
+## @param logLevel The log level to use for the tunnel.
+##
+logLevel: info
+
+## @param managed.enabled Whether to enable Managed (CF Zero Trust Dashboard) tunnel configuration. Cannot coexist with the local one.
+## @param managed.token The connector token provided at the end of the CF Zero Trust tunnel creation.
+## @param managed.existingSecret The name of the existing secret containing the token. The secret key must be set to 'cf-tunnel-token'.
+##
+managed:
+  enabled: true
+  token: ""
+  existingSecret: ""
+
+## @param local.enabled Whether to enable Local (CLI) tunnel configuration. Cannot coexist with the managed one.
+## @param local.auth.tunnelID The Argo Tunnel ID you created. Check the configuration section for details.
+## @param local.auth.accountTag The Argo tunnel account tag.
+## @param local.auth.tunnelName The Argo tunnel name.
+## @param local.auth.tunnelSecret The Argo tunnel secret.
+## @param local.auth.existingSecret The name of an existing secret containing the Argo tunnel settings.
+## @param local.warpRouting Whether to enable WARP traffic routing to local subnets.
+## @param local.ingress The ingress settings to apply. Check the configuration section for examples.
+##
+local:
+  enabled: false
+  auth:
+    tunnelID: ""
+    accountTag: ""
+    tunnelName: ""
+    tunnelSecret: ""
+    existingSecret: ""
+  warpRouting: false
+  ingress: []
+
+## @section Monitoring parameters
+
+## @param metrics.enabled Enable metrics for prometheus monitoring. The crd monitoring.coreos.com/v1 must be already installed on the target.
+## @param metrics.port The port to use for metrics.
+##
+metrics:
+  enabled: false
+  port: ""
+
+## @section Autoscaling parameters
+
+## @param autoscaling.enabled Enable autoscaling for the deployment
+## @param autoscaling.minReplicas Minimum number of replicas for the HPA
+## @param autoscaling.maxReplicas Maximum number of replicas for the HPA
+## @param autoscaling.targetMemoryUtilizationPercentage Target memory utilization percentage for the HPA
+## @param autoscaling.targetCPUUtilizationPercentage Target CPU utilization percentage for the HPA
+##
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 6
+  targetMemoryUtilizationPercentage: 50
+  targetCPUUtilizationPercentage: 50
+
+## @section Pod Disruption Budget parameters
+
+## @param podDisruptionBudget.enabled Enable PodDisruptionBudget for the deployment
+## @param podDisruptionBudget.minAvailable Minimum number of pods that must be available
+## @param podDisruptionBudget.maxUnavailable [number, nullable] Maximum number of pods that can be unavailable
+##
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: null # Optional: Maximum number of pods that can be unavailable

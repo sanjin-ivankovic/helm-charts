@@ -1,0 +1,19 @@
+apiVersion: v2
+name: omni-tools
+description: A Helm chart for Omni-Tools on Kubernetes
+type: application
+version: 1.0.1
+appVersion: "0.6.0"
+kubeVersion: ">=1.19.0"
+keywords:
+  - omni-tools
+  - utilities
+  - tools
+home: https://github.com/iib0011/omni-tools
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/omni-tools
+  - https://github.com/iib0011/omni-tools
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts
