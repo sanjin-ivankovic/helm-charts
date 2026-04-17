@@ -1,0 +1,21 @@
+apiVersion: v2
+name: pulse
+description: A Helm chart for Pulse infrastructure monitoring on Kubernetes
+type: application
+version: 1.0.4
+appVersion: "5.1.28"
+kubeVersion: ">=1.19.0"
+keywords:
+  - pulse
+  - monitoring
+  - proxmox
+  - kubernetes
+  - docker
+home: https://github.com/rcourtman/Pulse
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/pulse
+  - https://github.com/rcourtman/Pulse
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

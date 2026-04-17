@@ -1,0 +1,20 @@
+apiVersion: v2
+name: joplin
+description: A Helm chart for Joplin Server, a self-hosted note synchronisation server
+type: application
+version: 1.0.2
+appVersion: "3.5.2"
+kubeVersion: ">=1.19.0"
+keywords:
+  - joplin
+  - notes
+  - sync
+  - self-hosted
+home: https://joplinapp.org
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/joplin
+  - https://github.com/laurent22/joplin
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

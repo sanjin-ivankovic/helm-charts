@@ -1,0 +1,123 @@
+## Default values for Joplin Server
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: joplin/server
+  tag: "3.5.2@sha256:5d9e7f9d31b436cb1b99d1a6a65d8c5bf760829094617e8ad1e956fd925de888"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+replicaCount: 1
+# updateStrategy: If not set (null) and persistence is enabled, defaults to RollingUpdate with maxSurge: 0
+# This ensures old pod terminates before new one starts (required for ReadWriteOnce PVCs)
+updateStrategy: null
+
+## @section Pod spec parameters
+
+## @param priorityClassName Priority class name for the pod.
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param securityContext Security context for the pod.
+##
+priorityClassName: ""
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+securityContext: {}
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 22300
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claim (for filesystem storage driver).
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.size Size of the persistent volume.
+## @param persistence.accessModes Access modes for the PVC.
+##
+persistence:
+  enabled: false
+  storageClass: ""
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env.APP_PORT Port the Joplin server listens on.
+## @param env.APP_BASE_URL Public-facing URL of the server (used for links and sync).
+## @param env.DB_CLIENT Database driver (pg for PostgreSQL).
+## @param env.POSTGRES_HOST PostgreSQL hostname.
+## @param env.POSTGRES_PORT PostgreSQL port.
+##
+env:
+  APP_PORT: "22300"
+  APP_BASE_URL: ""
+  DB_CLIENT: "pg"
+  POSTGRES_HOST: ""
+  POSTGRES_PORT: "5432"
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret containing PostgreSQL credentials.
+## @param secretKeys.postgresDatabase Key in the existing secret for POSTGRES_DATABASE.
+## @param secretKeys.postgresUser Key in the existing secret for POSTGRES_USER.
+## @param secretKeys.postgresPassword Key in the existing secret for POSTGRES_PASSWORD.
+##
+existingSecret: ""
+secretKeys:
+  postgresDatabase: "database"
+  postgresUser: "username"
+  postgresPassword: "password"
+
+## @section Health Probes
+
+## @param probes.liveness Liveness probe configuration.
+## @param probes.readiness Readiness probe configuration.
+##
+probes:
+  liveness:
+    enabled: true
+    httpGetPath: /api/ping
+    httpGetPort: 22300
+    httpHeaders: []
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    failureThreshold: 5
+    timeoutSeconds: 10
+  readiness:
+    enabled: true
+    httpGetPath: /api/ping
+    httpGetPort: 22300
+    httpHeaders: []
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    failureThreshold: 5
+    timeoutSeconds: 10
