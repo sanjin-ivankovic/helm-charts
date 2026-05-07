@@ -1,0 +1,224 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for homelab Helm charts with automated chart version bumping",
+  "extends": ["config:best-practices", "mergeConfidence:all-badges"],
+  "timezone": "Europe/Berlin",
+  "labels": ["renovate", "dependencies"],
+  "assignees": ["@maintainer"],
+  "reviewers": ["@maintainer"],
+  "rebaseWhen": "behind-base-branch",
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
+  "branchConcurrentLimit": 10,
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "commitMessageAction": "Update",
+  "commitMessageTopic": "{{depName}}",
+  "automerge": false,
+  "platformAutomerge": false,
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "separateMultipleMajor": true,
+  "dependencyDashboardTitle": "Renovate Dashboard: Helm Charts",
+  "dependencyDashboardHeader": "Tracks dependency updates for homelab Helm charts.\n\n**After merging**: CI/CD publishes updated charts to the [OCI registry](https://registry.example.com/homelab/helm-charts). Downstream [argo-apps](https://gitlab.example.com/homelab/argo-apps) will detect the update.\n\n---",
+  "dependencyDashboardFooter": "---\n\n**Resources**: [OCI Registry](https://registry.example.com/homelab/helm-charts) | [Renovate Config](https://gitlab.example.com/homelab/helm-charts/-/blob/main/renovate.json) | [ArgoCD Apps](https://gitlab.example.com/homelab/argo-apps)",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "renovate"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "ignorePaths": [
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/_archive/**"
+  ],
+  "enabledManagers": ["helm-values", "dockerfile", "custom.regex"],
+  "customManagers": [
+    {
+      "description": "Extract tool versions from .gitlab-ci.yml with Renovate annotations",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.gitlab-ci\\.yml$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*\\w+:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}{{#if (equals datasource 'docker')}}docker{{else}}semver{{/if}}{{/if}}"
+    },
+    {
+      "description": "Extract tool versions from Dockerfile ARG variables with Renovate annotations",
+      "customType": "regex",
+      "managerFilePatterns": ["/Dockerfile$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*ARG\\s+\\w+=[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}{{#if (equals datasource 'docker')}}docker{{else}}semver{{/if}}{{/if}}"
+    },
+    {
+      "description": "Extract Docker image from initContainer.image fields in Helm values",
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)values\\.yaml$/"],
+      "matchStrings": [
+        "initContainer:\\s*\\n\\s+enabled:\\s+\\w+\\s*\\n\\s+image:\\s+(?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    }
+  ],
+  "hostRules": [
+    {
+      "description": "Docker Hub authentication to avoid rate limiting",
+      "matchHost": "docker.io",
+      "hostType": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Patch updates - Low risk, no stabilization delay",
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "0 days"
+    },
+    {
+      "description": "Minor updates - Moderate risk, 3-day stabilization",
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Major updates - Breaking changes, 7-day stabilization",
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "CI/CD tools - Disable digest pinning updates for CI files",
+      "matchFileNames": [".gitlab-ci.yml", ".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["pin"],
+      "enabled": false
+    },
+    {
+      "description": "Docker digest pinning - Pin floating tags to reproducible digests",
+      "matchFileNames": ["charts/**/values.yaml"],
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["pin"],
+      "groupName": "pin-docker-digests",
+      "commitMessagePrefix": "fix(docker):",
+      "labels": ["docker", "pinning"],
+      "prPriority": 8
+    },
+    {
+      "description": "Docker CI images - Group DOCKER_BASE_VERSION and DOCKER_VERSION to keep them in sync",
+      "matchFileNames": [".gitlab-ci.yml"],
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["docker"],
+      "groupName": "docker-ci-images",
+      "commitMessagePrefix": "ci(docker):",
+      "pinDigests": false,
+      "labels": ["ci", "docker"],
+      "prPriority": 8
+    },
+    {
+      "description": "CI/CD tools - GitLab CI variables extracted by custom regex, separate MRs per tool",
+      "matchFileNames": [".gitlab-ci.yml"],
+      "matchManagers": ["custom.regex"],
+      "pinDigests": false,
+      "commitMessagePrefix": "ci({{depName}}):",
+      "labels": ["ci", "tools"],
+      "prPriority": 7
+    },
+    {
+      "description": "CI Docker base image - Group with CI pipeline Docker versions for atomic updates",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchManagers": ["dockerfile"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["docker"],
+      "groupName": "docker-ci-images",
+      "commitMessagePrefix": "ci(docker):",
+      "pinDigests": true,
+      "labels": ["ci", "docker"],
+      "prPriority": 8
+    },
+    {
+      "description": "CI/CD tools - Patch stabilization",
+      "matchFileNames": [".gitlab-ci.yml", ".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "CI/CD tools - Minor stabilization",
+      "matchFileNames": [".gitlab-ci.yml", ".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "CI/CD tools - Major stabilization",
+      "matchFileNames": [".gitlab-ci.yml", ".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": "Allow unstable versions for SearXNG (rolling release tags)",
+      "matchPackageNames": ["searxng/searxng"],
+      "versioning": "loose",
+      "ignoreUnstable": false
+    },
+    {
+      "description": "Allow date-based versions for IT-Tools (date+commit tag format)",
+      "matchPackageNames": ["ghcr.io/corentinth/it-tools"],
+      "versioning": "loose",
+      "ignoreUnstable": false
+    },
+    {
+      "description": "Chart image updates - Updates Docker images in chart values and auto-bumps chart patch version",
+      "matchFileNames": ["charts/*/values.yaml"],
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["major", "minor", "patch", "digest"],
+      "commitMessagePrefix": "chore({{parentDir}}):",
+      "labels": ["docker"],
+      "prPriority": 20,
+      "groupName": "{{parentDir}}",
+      "groupSlug": "chart-{{parentDir}}",
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "bumpVersions": [
+        {
+          "filePatterns": ["{{packageFileDir}}/Chart.{yaml,yml}"],
+          "matchStrings": ["version:\\s*[\"']?(?<version>[^\"'\\s]+)[\"']?"],
+          "bumpType": "patch"
+        }
+      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "sed -i 's/^appVersion:.*/appVersion: \"{{{newVersion}}}\"/' {{{packageFileDir}}}/Chart.yaml"
+        ],
+        "fileFilters": ["charts/*/Chart.yaml"],
+        "executionMode": "branch"
+      }
+    },
+    {
+      "description": "Renovate self-updates - Highest priority, auto-merged",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["renovate/renovate", "renovatebot/renovate"],
+      "commitMessagePrefix": "chore(renovate):",
+      "labels": ["renovate"],
+      "prPriority": 100,
+      "minimumReleaseAge": "0 days"
+    }
+  ],
+  "prBodyTemplate": "{{{header}}}{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
+  "prBodyColumns": [
+    "Package",
+    "Update",
+    "Type",
+    "New value",
+    "Package file",
+    "References"
+  ],
+  "prBodyDefinitions": {
+    "Package": "{{{depNameLinked}}}{{#if newName}}{{#unless (equals depName newName)}} → {{{newNameLinked}}}{{/unless}}{{/if}}",
+    "Type": "{{{depType}}}",
+    "Update": "{{{updateType}}}",
+    "New value": "{{{newValue}}}",
+    "References": "{{{references}}}",
+    "Package file": "{{{packageFile}}}"
+  },
+  "prFooter": "This MR was created automatically by Renovate. Review changes carefully before merging.\n\n**After merging**: The CI/CD pipeline will publish updated charts to the [OCI registry](https://registry.example.com/homelab/helm-charts)."
+}
