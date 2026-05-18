@@ -1,0 +1,19 @@
+---
+# Test the .ci/scripts/ Python helpers with pytest.
+#
+# Only fires when those scripts (or their deps / pytest config) change.
+
+when:
+  - event: [push, pull_request]
+    path:
+      include:
+        - ".ci/scripts/**/*.py"
+        - ".ci/scripts/requirements.txt"
+        - ".ci/scripts/pytest.ini"
+
+steps:
+  - name: pytest
+    image: registry.example.com/homelab/helm-charts/ci:latest
+    commands:
+      - cd .ci/scripts
+      - pytest -v --cov --cov-report=xml --cov-report=term

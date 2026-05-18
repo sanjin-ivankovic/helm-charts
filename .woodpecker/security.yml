@@ -1,0 +1,22 @@
+---
+# Gitleaks secret scanning.
+#
+# Runs on any push or PR. Full git history required for thorough
+# scanning; Woodpecker's default clone depth is `partial: true`, so
+# explicitly override.
+
+when:
+  - event: [push, pull_request]
+
+clone:
+  - name: git
+    image: woodpeckerci/plugin-git
+    settings:
+      partial: false
+      depth: 0  # full history
+
+steps:
+  - name: scan-secrets
+    image: registry.example.com/homelab/helm-charts/ci:latest
+    commands:
+      - python3 .ci/scripts/scan_secrets.py --verbose

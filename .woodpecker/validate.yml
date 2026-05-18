@@ -1,0 +1,26 @@
+---
+# Fail-fast validation of changed charts: helm lint + helm template.
+#
+# Does NOT package — Woodpecker workflows don't share artifacts, so
+# any tarball built here gets thrown away. publish.yml runs its own
+# package step on push:main, gated on this workflow passing.
+
+when:
+  - event: [push, pull_request]
+    path:
+      include:
+        - "charts/**"
+
+steps:
+  - name: detect
+    image: registry.example.com/homelab/helm-charts/ci:latest
+    commands:
+      - python3 .ci/scripts/detect_changes.py --output changed-charts.txt
+      - 'echo "--- changed charts ---"'
+      - cat changed-charts.txt
+
+  - name: validate
+    image: registry.example.com/homelab/helm-charts/ci:latest
+    depends_on: [detect]
+    commands:
+      - python3 .ci/scripts/validate_chart.py --input-file changed-charts.txt

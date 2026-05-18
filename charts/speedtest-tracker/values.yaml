@@ -1,0 +1,142 @@
+## Default values for Speedtest Tracker
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: lscr.io/linuxserver/speedtest-tracker
+  tag: "1.13.12@sha256:eb3d249f16177964daa4fff7f6a90bbf6645f4e23158d92f5cddb133728d0804"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+replicaCount: 1
+# updateStrategy: If not set (null) and persistence is enabled, defaults to RollingUpdate with maxSurge: 0
+# This ensures old pod terminates before new one starts (required for ReadWriteOnce PVCs)
+# To override, uncomment and customize:
+# updateStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 0
+#     maxUnavailable: 1
+# Or use Recreate strategy for zero-downtime tolerance:
+# updateStrategy:
+#   type: Recreate
+updateStrategy: null
+
+## @section Pod spec parameters
+
+## @param priorityClassName Priority class name for the pod.
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param securityContext Security context for the pod.
+##
+priorityClassName: ""
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+securityContext: {}
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claim.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.size Size of the persistent volume.
+## @param persistence.accessModes Access modes for the PVC.
+##
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 5Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env.TZ Application timezone.
+## @param env.PUID User ID for file permissions.
+## @param env.PGID Group ID for file permissions.
+## @param env.APP_URL Application URL (e.g., https://speedtest.example.com).
+## @param env.DB_CONNECTION Database connection type (pgsql, sqlite, mysql).
+## @param env.DB_HOST Database hostname.
+## @param env.DB_PORT Database port.
+## @param env.SPEEDTEST_SCHEDULE Cron schedule for running speed tests.
+## @param env.PRUNE_RESULTS_OLDER_THAN Days to retain test results (0 = keep all).
+## @param env.DISPLAY_TIMEZONE Timezone for UI display.
+##
+env:
+  TZ: "Etc/UTC"
+  PUID: "1000"
+  PGID: "1000"
+  APP_URL: ""
+  DB_CONNECTION: "pgsql"
+  DB_HOST: ""
+  DB_PORT: "5432"
+  SPEEDTEST_SCHEDULE: "0 */6 * * *"
+  PRUNE_RESULTS_OLDER_THAN: "0"
+  DISPLAY_TIMEZONE: "Etc/UTC"
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret containing APP_KEY and DB credentials.
+## @param secretKeys.appKey Key in the existing secret for APP_KEY.
+## @param secretKeys.dbDatabase Key in the existing secret for DB_DATABASE.
+## @param secretKeys.dbUsername Key in the existing secret for DB_USERNAME.
+## @param secretKeys.dbPassword Key in the existing secret for DB_PASSWORD.
+##
+existingSecret: ""
+secretKeys:
+  appKey: "app-key"
+  dbDatabase: "database"
+  dbUsername: "username"
+  dbPassword: "password"
+
+## @section Health Probes
+
+## @param probes.liveness Liveness probe configuration.
+## @param probes.readiness Readiness probe configuration.
+##
+probes:
+  liveness:
+    enabled: true
+    httpGetPath: /api/healthcheck
+    httpGetPort: 80
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    failureThreshold: 5
+    timeoutSeconds: 10
+  readiness:
+    enabled: true
+    httpGetPath: /api/healthcheck
+    httpGetPort: 80
+    initialDelaySeconds: 15
+    periodSeconds: 15
+    failureThreshold: 5
+    timeoutSeconds: 10

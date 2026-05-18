@@ -1,0 +1,115 @@
+## Default values for LiteLLM
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+## NOTE: The `litellm-database` variant runs Prisma migrations on startup.
+## Do not switch to `ghcr.io/berriai/litellm` unless migrations are handled elsewhere.
+image:
+  repository: ghcr.io/berriai/litellm-database
+  tag: "v1.83.14-stable.patch.3@sha256:ec721a5e4b0decb3658c74b696e315dc3e1c664adbfbadded0564ee2d6cc03bc"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+## Single replica with Recreate avoids in-memory cache divergence between pods
+## (no Redis means each replica caches independently).
+##
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints.
+## @param securityContext Security context for the pod.
+## @param priorityClassName Priority class for the pod.
+##
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "2000m"
+    memory: "2Gi"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+securityContext: {}
+priorityClassName: ""
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 4000
+  targetPort: 4000
+
+## @section LiteLLM proxy configuration
+
+## @param args Container arguments passed to the litellm CLI.
+## @param proxy_config Rendered verbatim into the proxy_server_config.yaml ConfigMap.
+##
+args:
+  - "--config"
+  - "/app/proxy_server_config.yaml"
+  - "--port"
+  - "4000"
+  - "--num_workers"
+  - "2"
+
+proxy_config: {}
+
+## @section Secrets and environment variables
+
+## @param secrets.secretName Name of the Secret mounted via envFrom.
+## @param extraEnv Additional environment variables (list).
+## @param extraEnvFrom Additional envFrom sources (list).
+##
+secrets:
+  secretName: litellm-secrets
+
+extraEnv: []
+extraEnvFrom: []
+
+## @section Probes
+
+## @param probes.liveness Liveness probe configuration.
+## @param probes.readiness Readiness probe configuration.
+##
+## First-boot Prisma migrations can take 30-60s on top of worker startup.
+## startupProbe gates liveness/readiness — both only begin once startup
+## succeeds, so we don't have to over-tune initialDelaySeconds.
+##
+## Total time before kubelet gives up: failureThreshold * periodSeconds.
+## startup: 60 * 5s = 5 minutes — comfortable headroom for cold-start
+## migrations on a slow cluster.
+##
+probes:
+  startup:
+    path: /health/liveliness
+    periodSeconds: 5
+    failureThreshold: 60
+  liveness:
+    path: /health/liveliness
+    periodSeconds: 10
+    failureThreshold: 6
+  readiness:
+    path: /health/readiness
+    periodSeconds: 5
+    failureThreshold: 30

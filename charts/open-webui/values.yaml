@@ -1,0 +1,110 @@
+## Default values for Open WebUI
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+## NOTE: Use the standard image; the cuda* variants bundle local model runtimes
+## we do not need (LiteLLM handles routing to upstream providers).
+image:
+  repository: ghcr.io/open-webui/open-webui
+  tag: "v0.9.5@sha256:e045bde3b004cc7f8c319412345eb56c87ea6ac57031534a31ca37ad5424beb3"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+## Single replica with Recreate avoids Multi-Attach errors on the RWO PVC during
+## rollouts. Open WebUI's SQLite store also serializes badly with multiple writers.
+##
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints.
+## @param securityContext Security context for the pod.
+## @param priorityClassName Priority class for the pod.
+##
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+securityContext: {}
+priorityClassName: ""
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claim.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.size Size of the persistent volume.
+## @param persistence.accessModes Access modes for the PVC.
+##
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 5Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Secrets and environment variables
+
+## @param secrets.secretName Name of the Secret mounted via envFrom.
+## @param env Map of non-secret environment variables.
+## @param extraEnvFrom Additional envFrom sources (list).
+##
+secrets:
+  secretName: open-webui-secrets
+
+env: {}
+extraEnvFrom: []
+
+## @section Probes
+
+## @param probes.startup Startup probe configuration.
+## @param probes.liveness Liveness probe configuration.
+## @param probes.readiness Readiness probe configuration.
+##
+## startupProbe gates liveness/readiness so first-boot DB migrations and asset
+## warm-up don't trip the kubelet. failureThreshold * periodSeconds = total wait.
+##
+probes:
+  startup:
+    path: /health
+    periodSeconds: 5
+    failureThreshold: 30
+  liveness:
+    path: /health
+    periodSeconds: 30
+    failureThreshold: 5
+  readiness:
+    path: /health
+    periodSeconds: 15
+    failureThreshold: 3

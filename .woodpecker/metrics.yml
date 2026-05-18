@@ -1,0 +1,17 @@
+---
+# Chart metrics — collects chart performance markdown report weekly.
+#
+# Fires on the "metrics" cron schedule, configured in Woodpecker UI:
+# Repo Settings > Crons > Add cron. Suggested: "0 3 * * 1" (weekly
+# Monday 03:00 Europe/Berlin).
+
+when:
+  - event: cron
+    cron: metrics
+  - event: manual
+
+steps:
+  - name: chart-performance
+    image: registry.example.com/homelab/helm-charts/ci:latest
+    commands:
+      - python3 .ci/scripts/chart_metrics.py --output chart-metrics.md --format markdown

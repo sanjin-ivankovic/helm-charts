@@ -1,0 +1,94 @@
+## Default values for Pulse
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The image pull policy.
+##
+image:
+  repository: rcourtman/pulse
+  tag: "5.1.30@sha256:5f22a7c8492ce39d99caef0ed76130173363c206af436d969bf27a7ad6d21e23"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The deployment update strategy.
+## @param priorityClassName Priority class name for pod scheduling.
+##
+replicaCount: 1
+updateStrategy: null
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Affinity rules for pod scheduling.
+## @param tolerations Tolerations for pod scheduling.
+## @param topologySpreadConstraints Topology spread constraints for
+##   pod distribution.
+##
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "50m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+
+## @section Service parameters
+
+## @param service.type The type of Kubernetes service to create.
+## @param service.port The port the service listens on.
+## @param service.targetPort The port the container listens on.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 7655
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claim.
+## @param persistence.storageClass Storage class for the PVC.
+## @param persistence.size Size of the persistent volume.
+## @param persistence.accessModes Access modes for the PVC.
+##
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env.TZ Container timezone.
+##
+env:
+  TZ: "Etc/UTC"
+
+## @section Health Probe parameters
+
+## @param livenessProbe Liveness probe configuration.
+## @param readinessProbe Readiness probe configuration.
+##
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: 7655
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: 7655
+  initialDelaySeconds: 10
+  periodSeconds: 5

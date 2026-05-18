@@ -1,0 +1,52 @@
+---
+# Publish charts to the OCI registry on push to main.
+#
+# Gates: only runs after lint, validate, and security workflows have
+# all completed successfully (workflow-level depends_on). That removes
+# the need to re-run validation here — the validate workflow already
+# did it.
+#
+# Steps inside this workflow:
+#   detect  → which chart(s) changed in this commit
+#   package → helm package the changed charts
+#   publish → helm registry login + helm push to Harbor
+
+when:
+  - event: push
+    branch: main
+    path:
+      include:
+        - "charts/*/Chart.yaml"
+
+depends_on:
+  - lint
+  - validate
+  - security
+
+steps:
+  - name: detect
+    image: registry.example.com/homelab/helm-charts/ci:latest
+    commands:
+      - python3 .ci/scripts/detect_changes.py --output changed-charts.txt
+      - cat changed-charts.txt
+
+  - name: package
+    image: registry.example.com/homelab/helm-charts/ci:latest
+    depends_on: [detect]
+    commands:
+      - mkdir -p .packages
+      - python3 .ci/scripts/package_chart.py --input-file changed-charts.txt
+
+  - name: publish
+    image: registry.example.com/homelab/helm-charts/ci:latest
+    depends_on: [package]
+    environment:
+      HARBOR_USER:
+        from_secret: harbor_user
+      HARBOR_PASSWORD:
+        from_secret: harbor_password
+    commands:
+      # publish_chart.py assumes helm registry login has already
+      # happened (matches the GitLab CI `.publish-job` `before_script`).
+      - 'echo "$HARBOR_PASSWORD" | helm registry login registry.example.com -u "$HARBOR_USER" --password-stdin'
+      - python3 .ci/scripts/publish_chart.py --input-file changed-charts.txt

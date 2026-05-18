@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount | int }}
+  selector:
+    matchLabels:
+      {{- include "pulse.selectorLabels" . | nindent 6 }}
+  {{- $updateStrategy := .Values.updateStrategy }}
+  {{- if and $updateStrategy (kindIs "map" $updateStrategy) (hasKey $updateStrategy "type") }}
+  # User-defined update strategy
+  strategy:
+    {{- toYaml $updateStrategy | nindent 4 }}
+  {{- else if .Values.persistence.enabled }}
+  # Default strategy for ReadWriteOnce PVCs: terminate old pod before starting new one
+  # This prevents Multi-Attach errors by ensuring old pod terminates before new one starts
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "pulse.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      containers:
+        - name: {{ include "pulse.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- if .Values.env }}
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: pulse-data
+              mountPath: /data
+              readOnly: false
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: pulse-data
+          persistentVolumeClaim:
+            claimName: {{ include "pulse.pvcName" . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

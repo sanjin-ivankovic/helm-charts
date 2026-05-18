@@ -1,0 +1,17 @@
+1. Port-forward to reach the UI locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "open-webui.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  Visit http://127.0.0.1:{{ .Values.service.port }}
+
+2. Check deployment status:
+  kubectl --namespace {{ .Release.Namespace }} get deployment {{ include "open-webui.fullname" . }}
+
+3. View logs:
+  kubectl --namespace {{ .Release.Namespace }} logs -l app.kubernetes.io/name={{ include "open-webui.name" . }}
+
+{{- if .Values.persistence.enabled }}
+
+4. Check persistent volume claim:
+  kubectl --namespace {{ .Release.Namespace }} get pvc {{ include "open-webui.pvcName" . }}
+{{- end }}
+
+Note: IngressRoute and Secrets are managed separately via Kustomize for better flexibility.

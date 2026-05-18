@@ -1,0 +1,20 @@
+apiVersion: v2
+name: open-webui
+description: A Helm chart for Open WebUI on Kubernetes
+type: application
+version: 1.0.0
+appVersion: "v0.9.5"
+kubeVersion: ">=1.19.0"
+keywords:
+  - open-webui
+  - llm
+  - chat
+  - ai
+home: https://github.com/open-webui/open-webui
+sources:
+  - https://gitlab.example.com/homelab/helm-charts/-/tree/main/charts/open-webui
+  - https://github.com/open-webui/open-webui
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://gitlab.example.com/homelab/helm-charts

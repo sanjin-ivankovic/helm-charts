@@ -1,0 +1,17 @@
+1. Port-forward to reach the proxy locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "litellm.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl http://127.0.0.1:{{ .Values.service.port }}/health/liveliness
+
+2. Check deployment status:
+  kubectl --namespace {{ .Release.Namespace }} get deployment {{ include "litellm.fullname" . }}
+
+3. View logs:
+  kubectl --namespace {{ .Release.Namespace }} logs -l app.kubernetes.io/name={{ include "litellm.name" . }}
+
+4. Mint a virtual key (master key required, defined in the Secret):
+  curl -X POST http://127.0.0.1:{{ .Values.service.port }}/key/generate \
+    -H "Authorization: Bearer <LITELLM_MASTER_KEY>" \
+    -H "Content-Type: application/json" \
+    -d '{"models":["claude-sonnet-4-6"],"key_alias":"my-client","max_budget":10}'
+
+Note: IngressRoute and Secrets are managed separately via Kustomize for better flexibility.

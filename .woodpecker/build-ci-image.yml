@@ -1,0 +1,107 @@
+---
+# Build the "golden CI image" published to Harbor as
+# registry.example.com/homelab/helm-charts/ci:latest. Every other
+# workflow in this repo pulls that image as its step container.
+#
+# Uses woodpeckerci/plugin-docker-buildx — handles login + buildx +
+# cache internally. No DinD socket-mount gymnastics needed.
+#
+# Three traps documented here (don't undo without re-reading):
+#
+#   1. `build_args` is documented in the plugin docs as a YAML map
+#      (`KEY: value` pairs). Using a list form (`- KEY=value`) hits
+#      issue woodpecker-plugins/docker-buildx#94 — Woodpecker's
+#      settings serializer joins the list with commas, and the
+#      plugin's urfave/cli StringSliceFlag receives the whole thing
+#      as ONE entry, producing
+#        --build-arg *=DOCKER_VERSION=29.4.3-cli,HELM_VERSION=4.1.4,...
+#      in the rendered buildx command. The map form makes Woodpecker
+#      serialize as JSON, which the plugin parses correctly.
+#
+#   2. The build_args map is defined once via a YAML anchor under
+#      top-level `variables:` (Woodpecker's documented anchor host)
+#      and referenced as `*build_args` in both steps. Map-valued
+#      anchors round-trip cleanly through Woodpecker's plugin-settings
+#      serializer (verified empirically — list-valued anchors do not).
+#      Renovate's customManager picks up the `# renovate:` comments
+#      from the anchor body, so a single bump updates both steps.
+#
+#   3. Talos CNI overlay leaves ~1400 usable bytes per frame; the
+#      default 1500-byte MTU on the bundled buildkit/dockerd causes
+#      TLS connection resets mid-download. mtu: 1300 on both steps.
+#
+# Two steps because Woodpecker doesn't support conditional values in
+# `settings:` (no `dry_run: ${EXPR}` style):
+#   - build-and-push fires on push:main; tags :latest + :<sha>, pushes
+#   - build-only fires on PRs; tags :pr-<n>; dry_run
+
+variables:
+  - &build_args
+    # renovate: datasource=docker depName=docker versioning=docker
+    DOCKER_VERSION: 29.4.3-cli
+    # renovate: datasource=docker depName=alpine/helm
+    HELM_VERSION: 4.1.4
+    # renovate: datasource=pypi depName=yamllint
+    YAMLLINT_VERSION: 1.38.0
+    # renovate: datasource=docker depName=koalaman/shellcheck-alpine
+    SHELLCHECK_VERSION: v0.11.0
+    # renovate: datasource=npm depName=markdownlint-cli2
+    MARKDOWNLINT_VERSION: 0.22.1
+    # renovate: datasource=pypi depName=pyyaml
+    PYYAML_VERSION: 6.0.3
+    # renovate: datasource=pypi depName=tqdm
+    TQDM_VERSION: 4.67.3
+    # renovate: datasource=pypi depName=pytest
+    PYTEST_VERSION: 9.0.3
+    # renovate: datasource=pypi depName=pytest-cov
+    PYTEST_COV_VERSION: 7.1.0
+    # renovate: datasource=pypi depName=requests
+    REQUESTS_VERSION: 2.33.1
+    # renovate: datasource=github-releases depName=gitleaks/gitleaks
+    GITLEAKS_VERSION: v8.30.1
+
+when:
+  - event: [push, pull_request]
+    path:
+      include:
+        - ".ci/docker/**"
+        - ".woodpecker/build-ci-image.yml"
+
+steps:
+  - name: build-and-push
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      registry: registry.example.com
+      repo: registry.example.com/homelab/helm-charts/ci
+      dockerfile: .ci/docker/Dockerfile
+      context: .ci/docker
+      platforms: linux/amd64
+      tags:
+        - latest
+        - ${CI_COMMIT_SHA}
+      cache_images:
+        - registry.example.com/homelab/helm-charts/ci:cache
+      mtu: 1400
+      username:
+        from_secret: harbor_user
+      password:
+        from_secret: harbor_password
+      build_args: *build_args
+    when:
+      - event: push
+        branch: main
+
+  - name: build-only
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      repo: registry.example.com/homelab/helm-charts/ci
+      dockerfile: .ci/docker/Dockerfile
+      context: .ci/docker
+      platforms: linux/amd64
+      tags:
+        - pr-${CI_COMMIT_PULL_REQUEST}
+      dry_run: true
+      mtu: 1400
+      build_args: *build_args
+    when:
+      - event: pull_request

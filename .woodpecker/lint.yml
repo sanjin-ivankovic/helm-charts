@@ -1,0 +1,35 @@
+---
+# Lint workflow: yamllint + shellcheck + markdownlint, parallel steps.
+#
+# Each step shells out to a .ci/scripts/lint_*.py helper. They all
+# run the same container image, so anchor that once.
+
+when:
+  - event: [push, pull_request]
+    path:
+      include:
+        - "**/*.yaml"
+        - "**/*.yml"
+        - "**/*.sh"
+        - "**/*.md"
+        - ".config/.yamllint"
+        - ".ci/scripts/lint_*.py"
+
+variables:
+  - &ci_image registry.example.com/homelab/helm-charts/ci:latest
+
+steps:
+  - name: yaml
+    image: *ci_image
+    commands:
+      - python3 .ci/scripts/lint_yaml.py --verbose
+
+  - name: shell
+    image: *ci_image
+    commands:
+      - python3 .ci/scripts/lint_shell.py --verbose
+
+  - name: markdown
+    image: *ci_image
+    commands:
+      - python3 .ci/scripts/lint_markdown.py --verbose
