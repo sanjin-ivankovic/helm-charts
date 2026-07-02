@@ -1,0 +1,264 @@
+---
+# =============================================================================
+# GitLab CI/CD pipeline for helm-charts (custom Helm chart repository).
+#
+# Runs on the homelab gitlab-runner (Docker executor binding the host docker
+# socket — tags: [docker]). CD is unaffected (ArgoCD pulls the published charts).
+#
+# Quality is NATIVE per-tool jobs (fail-fast, individually gated), NOT a
+# pre-commit blob. pre-commit stays a LOCAL dev hook only — never run in CI.
+#
+# Shared jobs come from homelab/ci-components CI/CD COMPONENTS (pinned @1.0.0,
+# Renovate-tracked). They run on this repo's CI image ($CI_IMAGE = helm-charts/ci,
+# a thin FROM ci-base layer) since the chart jobs need helm/crane/trivy. The
+# chart validate/publish/notify jobs and the chart-render trivy scan are
+# helm-charts-specific and stay inline.
+#
+# Publish model: on a main push that bumps a chart's Chart.yaml version, the
+# changed chart is packaged, helm-pushed to Harbor, then cosign-signed by ref.
+# If signing fails, the just-pushed chart is `crane delete`d so an unsigned
+# chart never lingers for consumers.
+#
+# Harbor auth: GitLab Harbor integration (group homelab) injects $HARBOR_*.
+# Secrets via CI/CD variables: COSIGN_KEY/COSIGN_PASSWORD + GITHUB_PUBLISH_TOKEN
+# + RENOVATE_* (group), DISCORD_WEBHOOK_URL (project).
+# =============================================================================
+
+default:
+  tags:
+    - docker
+
+variables:
+  CI_IMAGE: registry.example.com/example-org/helm-charts/ci:latest
+  CI_IMAGE_BASE: registry.example.com/example-org/helm-charts/ci
+  GIT_DEPTH: "50"
+
+stages:
+  - scan
+  - lint
+  - validate
+  - publish
+  - image
+  - mirror
+
+# Dedupe branch+MR pipelines: MR pipelines on branches, push pipelines only on
+# main. (helm-charts has no tag releases, but keep the canonical dedupe shape.)
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+    - when: never
+
+# -----------------------------------------------------------------------------
+# Shared CI/CD components (homelab/ci-components @1.0.0). Each reads this repo's
+# own .config/ rule files + .ci/sanitize/sanitize-config.yaml, and runs on
+# $CI_IMAGE (the helm thin image) except mirror-github (ci-base is enough).
+# -----------------------------------------------------------------------------
+include:
+  # Secret scan + per-tool lint (yaml/shell/markdown — three single-job components).
+  - component: source.example.com/homelab/ci-components/scan-secrets@1.0.14
+    inputs:
+      image: registry.example.com/example-org/helm-charts/ci:latest
+  - component: source.example.com/homelab/ci-components/lint-yaml@1.0.14
+    inputs:
+      image: registry.example.com/example-org/helm-charts/ci:latest
+  - component: source.example.com/homelab/ci-components/lint-shell@1.0.14
+    inputs:
+      image: registry.example.com/example-org/helm-charts/ci:latest
+  - component: source.example.com/homelab/ci-components/lint-markdown@1.0.14
+    inputs:
+      image: registry.example.com/example-org/helm-charts/ci:latest
+
+  # pytest for the chart scripts. Runs in the LINT stage (publish:charts gates on
+  # it, so it must finish before the publish stage).
+  - component: source.example.com/homelab/ci-components/test-ci-scripts@1.0.14
+    inputs:
+      image: registry.example.com/example-org/helm-charts/ci:latest
+      stage: lint
+
+  # Build + sign this repo's CI image (rebuild on the Dockerfile; the /opt/ci
+  # publish tooling is provided by ci-base).
+  - component: source.example.com/homelab/ci-components/ci-image@1.0.14
+    inputs:
+      image_name: example-org/helm-charts/ci
+      changes: [.ci/docker/Dockerfile]
+  - component: source.example.com/homelab/ci-components/cosign-sign@1.0.14
+    inputs:
+      image: registry.example.com/example-org/helm-charts/ci:latest
+      job_name: "sign:ci-image"
+      needs_job: "build:ci-image"
+      rules:
+        - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+          changes: [.ci/docker/Dockerfile]
+
+  # GitHub portfolio mirror (ci-base carries the /opt/ci publish tooling, so it
+  # doesn't need the heavier helm image).
+  - component: source.example.com/homelab/ci-components/mirror-github@1.0.14
+    inputs:
+      repo_name: helm-charts
+
+# -----------------------------------------------------------------------------
+# Trivy misconfig scan of the rendered chart templates. STAYS INLINE: trivy
+# config scans a PATH (not stdin / not Go templates), so each chart is rendered
+# to a file first, then the dir is scanned — the trivy-config component has no
+# script-override input. Blocks on HIGH,CRITICAL; accepted findings live in
+# .config/.trivyignore.yaml.
+# -----------------------------------------------------------------------------
+scan:trivy-charts:
+  stage: scan
+  image: $CI_IMAGE
+  variables:
+    TRIVY_SEVERITY: "HIGH,CRITICAL"
+    TRIVY_EXIT_CODE: "1"
+    TRIVY_CACHE_DIR: ".trivycache"
+  cache:
+    key: "trivy-db"
+    paths:
+      - .trivycache
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: &trivy-charts-changes
+        - charts/**/*
+        - .config/.trivyignore.yaml
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+      changes: *trivy-charts-changes
+  script:
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    # `trivy config` scans a PATH, not stdin, so render each chart to a file
+    # (separate statement so a render failure is caught) and scan the dir.
+    - |
+      rendered=rendered-charts
+      rm -rf "$rendered" && mkdir -p "$rendered"
+      rc=0
+      for chart in charts/*/; do
+        name=$(basename "$chart")
+        echo "=== helm template $name ==="
+        helm template "$name" "$chart" > "$rendered/$name.yaml" \
+          || { echo "helm template failed for $name"; rc=1; }
+      done
+      [ "$rc" -eq 0 ] || exit "$rc"
+    # SARIF pass (non-blocking → artifact survives findings), then console pass.
+    - >
+      trivy config --severity "$TRIVY_SEVERITY" --exit-code 0
+      --ignorefile .config/.trivyignore.yaml --cache-dir "$TRIVY_CACHE_DIR"
+      --format sarif --output trivy-config.sarif rendered-charts
+    - >
+      trivy config --severity "$TRIVY_SEVERITY" --exit-code "$TRIVY_EXIT_CODE"
+      --ignorefile .config/.trivyignore.yaml --cache-dir "$TRIVY_CACHE_DIR"
+      rendered-charts
+  artifacts:
+    when: always
+    paths:
+      - trivy-config.sarif
+    expire_in: 7 days
+
+# -----------------------------------------------------------------------------
+# Chart validation: helm lint → dependency update → template --dry-run, per
+# changed chart (validate_chart.py loops internally). Gated on charts/ changes.
+# -----------------------------------------------------------------------------
+validate:charts:
+  stage: validate
+  image: $CI_IMAGE
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: &charts-changes
+        - charts/**/*
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+      changes: *charts-changes
+  script:
+    - python3 .ci/scripts/detect_changes.py --output changed-charts.txt
+    - cat changed-charts.txt
+    - python3 .ci/scripts/validate_chart.py --input-file changed-charts.txt
+
+# -----------------------------------------------------------------------------
+# Publish + sign charts. Main push only, gated on a Chart.yaml version bump.
+# Behind the quality gate (needs validate:charts + test:ci-scripts) so a red
+# build never publishes. package → per-chart (helm push via publish_chart.py →
+# cosign sign by ref → crane delete rollback on sign failure). Harbor auth via
+# the GitLab Harbor integration.
+# -----------------------------------------------------------------------------
+publish:charts:
+  stage: publish
+  image: $CI_IMAGE
+  needs:
+    - job: validate:charts
+    - job: test:ci-scripts
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+      changes:
+        - charts/*/Chart.yaml
+  variables:
+    # publish_chart.py checks CI_REGISTRY_IMAGE FIRST — and GitLab predefines it
+    # to the GitLab registry. Blank it so the script falls through to the Harbor
+    # fallback below (empty string is falsy in its resolver).
+    CI_REGISTRY_IMAGE: ""
+    REGISTRY_HOST: registry.example.com
+    REGISTRY_OWNER: homelab
+    REGISTRY_PROJECT: helm-charts
+    # helm + cosign + crane all read this dir's config.json for Harbor auth.
+    DOCKER_CONFIG: $CI_PROJECT_DIR/.docker
+    HELM_REGISTRY_CONFIG: $CI_PROJECT_DIR/.docker/config.json
+  before_script:
+    - mkdir -p "$DOCKER_CONFIG"
+    # Harbor auth from the GitLab Harbor integration vars (one login → one
+    # config.json that helm/cosign/crane all reuse).
+    - echo "$HARBOR_PASSWORD" | cosign login "$HARBOR_HOST" -u "$HARBOR_USERNAME" --password-stdin
+    - echo "$HARBOR_PASSWORD" | helm registry login "$HARBOR_HOST" -u "$HARBOR_USERNAME" --password-stdin
+  script:
+    - python3 .ci/scripts/detect_changes.py --output changed-charts.txt
+    - cat changed-charts.txt
+    - mkdir -p .packages
+    - python3 .ci/scripts/package_chart.py --input-file changed-charts.txt
+    # Empty signing-config (no Fulcio/Rekor/TSA/OIDC) — private Harbor, static
+    # keypair; required by --new-bundle-format. Generated once, reused per chart.
+    - cosign signing-config create --no-default-fulcio --no-default-rekor --no-default-tsa --no-default-oidc --out /tmp/signing-config.json
+    - |
+      set -euo pipefail
+      REGISTRY=registry.example.com/example-org/helm-charts
+      published=0
+      shopt -s nullglob
+      for TGZ in .packages/*.tgz; do
+        FNAME=$(basename "$TGZ" .tgz)
+        CHART="${FNAME%-*}"
+        VERSION="${FNAME##*-}"
+        REF="${REGISTRY}/${CHART}:${VERSION}"
+
+        echo "=== publish $CHART:$VERSION ==="
+        # Idempotent: publish_chart.py skips the push if the version exists.
+        python3 .ci/scripts/publish_chart.py "$CHART"
+
+        echo "=== cosign sign $REF ==="
+        # COSIGN_KEY is a File-type CI/CD variable → $COSIGN_KEY is a PATH.
+        if cosign sign --yes --signing-config=/tmp/signing-config.json --new-bundle-format \
+             --key "$COSIGN_KEY" "$REF"; then
+          published=$((published + 1))
+        else
+          echo "ERROR: signing failed for $REF — rolling back the pushed chart" >&2
+          crane delete "$REF" || \
+            echo "WARN: rollback delete of $REF failed; chart may be unsigned in Harbor" >&2
+          exit 1
+        fi
+      done
+      echo "Published + signed $published chart(s)."
+
+# -----------------------------------------------------------------------------
+# Notify Discord on a successful chart publish. needs:[publish:charts] so a
+# failed publish stays silent. Re-derives the changed-charts list (stateless).
+# -----------------------------------------------------------------------------
+notify:published:
+  stage: publish
+  image: $CI_IMAGE
+  needs:
+    - job: publish:charts
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+      changes:
+        - charts/*/Chart.yaml
+  variables:
+    # notify.py prints the install path from CI_REGISTRY_IMAGE; point it at Harbor.
+    CI_REGISTRY_IMAGE: registry.example.com/example-org/helm-charts
+  script:
+    - python3 .ci/scripts/detect_changes.py --output changed-charts.txt
+    - python3 .ci/scripts/notify.py --type published --input-file changed-charts.txt
