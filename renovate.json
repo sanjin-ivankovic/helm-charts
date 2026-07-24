@@ -1,0 +1,138 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for homelab Helm charts with automated chart version bumping",
+  "dependencyDashboardTitle": "Renovate Dashboard: Helm Charts",
+  "dependencyDashboardHeader": "Tracks dependency updates for the homelab Helm charts.\n\n**After merging**: CI publishes updated charts to the [OCI registry](https://registry.example.com/example-org/helm-charts); [argo-apps](https://source.example.com/example-org/argo-apps) picks them up on its next Renovate run.\n\n---",
+  "dependencyDashboardFooter": "---\n\n**Resources**: [OCI Registry](https://registry.example.com/example-org/helm-charts) | [Renovate Config](https://source.example.com/example-org/helm-charts/-/blob/main/renovate.json) | [CLAUDE.md](https://source.example.com/example-org/helm-charts/-/blob/main/.claude/CLAUDE.md)",
+  "extends": [
+    "local>homelab/renovate",
+    "local>homelab/renovate:dockerfile-args",
+    "local>homelab/renovate:ci-components",
+    "gitlab>renovate-bot/renovate-runner"
+  ],
+  "ignorePaths": [
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/test/**",
+    "**/tests/**",
+    ".archive/**",
+    "**/.archive/**"
+  ],
+  "enabledManagers": [
+    "helm-values",
+    "custom.regex",
+    "dockerfile",
+    "gitlabci",
+    "pre-commit"
+  ],
+  "packageRules": [
+    {
+      "description": "Chart app updates - graduated stabilization soak by update type (patch 1d / minor 3d / major 7d). NOTE: config:best-practices (via config:recommended) sets minimumReleaseAgeBehaviour=timestamp-required, so a release WITHOUT a release timestamp is held 'pending' indefinitely. All current chart images live on ghcr.io / quay.io / docker.io, which return timestamps, so none stall. If a timestamp-less registry (e.g. lscr.io) is ever added, set minimumReleaseAgeBehaviour=timestamp-or-age for those packages so they don't hang. Security/CVE updates are exempt via vulnerabilityAlerts. Digest-only re-pins carry no soak (handled by the digest rule below).",
+      "matchFileNames": ["charts/**/values.yaml"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "1 day"
+    },
+    {
+      "description": "Chart app updates - minor soak.",
+      "matchFileNames": ["charts/**/values.yaml"],
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Chart app updates - major soak.",
+      "matchFileNames": ["charts/**/values.yaml"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "Docker digest pinning - Pin floating tags to reproducible digests",
+      "matchFileNames": ["charts/**/values.yaml"],
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["pin"],
+      "groupName": "pin-docker-digests",
+      "commitMessagePrefix": "fix(docker):",
+      "labels": ["docker", "pinning"],
+      "prPriority": 8
+    },
+    {
+      "description": "CI Docker base image - Group with CI pipeline Docker versions for atomic updates. pinDigests:false (not manager-scoped): the docker base ARG carries tag@sha256 and is seen by both the native dockerfile manager and the custom.regex annotation; with pinDigests:true the inherited docker:pinDigests probes a malformed `manifests/<tag>@sha256:<digest>` HEAD that 404s ('Could not determine new digest'). false suppresses the probe; a real tag bump still rewrites tag+digest via the autoReplaceStringTemplate, so the digest stays current.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["docker"],
+      "groupName": "docker-ci-images",
+      "commitMessagePrefix": "ci(docker):",
+      "pinDigests": false,
+      "labels": ["ci", "docker"],
+      "prPriority": 8
+    },
+    {
+      "description": "Allow unstable versions for SearXNG (rolling release tags)",
+      "matchPackageNames": ["searxng/searxng"],
+      "versioning": "loose",
+      "ignoreUnstable": false
+    },
+    {
+      "description": "Allow date-based versions for IT-Tools (date+commit tag format)",
+      "matchPackageNames": ["ghcr.io/corentinth/it-tools"],
+      "versioning": "loose",
+      "ignoreUnstable": false
+    },
+    {
+      "description": "pgAdmin4 - restrict to semver tags. Docker Hub also publishes date-formatted tags (2021-12-15-2 etc). allowedVersions does ALL the filtering — only semver tags become PRs. maxMajorIncrement:0 means 'no cap on the major-version jump' (0 = unlimited per Renovate docs), so a large but legitimate semver major bump is never withheld; the date-tag noise is already excluded by allowedVersions.",
+      "matchPackageNames": ["dpage/pgadmin4"],
+      "allowedVersions": "/^[0-9]+\\.[0-9]+\\.[0-9]+$/",
+      "maxMajorIncrement": 0
+    },
+    {
+      "description": "FreshRSS - restrict to semver tags. Docker Hub also publishes integer-only tags (7974, 8392…). allowedVersions excludes those; maxMajorIncrement:0 (unlimited major jump) keeps Renovate from withholding a large-but-legitimate semver major bump. Same rationale as pgadmin4 above.",
+      "matchPackageNames": ["freshrss/freshrss"],
+      "allowedVersions": "/^[0-9]+\\.[0-9]+\\.[0-9]+$/",
+      "maxMajorIncrement": 0
+    },
+    {
+      "description": "LiteLLM database - restrict to release tags, excluding prereleases and junk. BerriAI publishes one-off tags (1819_stable_patch-…) which Renovate would otherwise read as massive major bumps, plus -rc.N / -dev.N prereleases. allowedVersions admits plain vX.Y.Z and the optional -stable / -stable.patch.N suffixes, and nothing else; maxMajorIncrement:0 (unlimited major jump) then ensures a legitimate bump is never withheld by an increment cap. NOTE: this pattern previously required the -stable.patch.N suffix, which BerriAI stopped publishing after v1.83.14 — that silently pinned the chart at 1.83 for months while upstream shipped through 1.92. Keep this permissive enough to survive upstream renaming their tags again.",
+      "matchPackageNames": ["ghcr.io/berriai/litellm-database"],
+      "allowedVersions": "/^v[0-9]+\\.[0-9]+\\.[0-9]+(-stable(\\.patch\\.[0-9]+)?)?$/",
+      "maxMajorIncrement": 0
+    },
+    {
+      "description": "Chart image VERSION updates (tag bumps) - auto-bumps chart patch version",
+      "matchFileNames": ["charts/*/values.yaml"],
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "commitMessagePrefix": "chore({{parentDir}}):",
+      "labels": ["docker"],
+      "prPriority": 20,
+      "groupName": "{{parentDir}}",
+      "groupSlug": "chart-{{parentDir}}",
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "bumpVersions": [
+        {
+          "filePatterns": ["{{packageFileDir}}/Chart.{yaml,yml}"],
+          "matchStrings": ["version:\\s*[\"']?(?<version>[^\"'\\s]+)[\"']?"],
+          "bumpType": "patch"
+        }
+      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "sed -i 's/^appVersion:.*/appVersion: \"{{{newVersion}}}\"/' {{{packageFileDir}}}/Chart.yaml"
+        ],
+        "fileFilters": ["charts/*/Chart.yaml"],
+        "executionMode": "branch"
+      }
+    },
+    {
+      "description": "Chart image DIGEST-only re-pins - separate branch so they never collide with tag bumps for the same image",
+      "matchFileNames": ["charts/*/values.yaml"],
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest"],
+      "commitMessagePrefix": "fix({{parentDir}}):",
+      "labels": ["docker", "digest"],
+      "prPriority": 18,
+      "groupName": "{{parentDir}}-digest",
+      "groupSlug": "chart-{{parentDir}}-digest",
+      "additionalBranchPrefix": "{{parentDir}}-digest-"
+    }
+  ],
+  "prFooter": "This MR was created automatically by Renovate. Review changes carefully before merging.\n\n**After merging**: The CI/CD pipeline will publish updated charts to the [OCI registry](https://registry.example.com/example-org/helm-charts)."
+}
