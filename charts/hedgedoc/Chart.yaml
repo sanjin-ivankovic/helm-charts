@@ -1,0 +1,21 @@
+apiVersion: v2
+name: hedgedoc
+description: A Helm chart for HedgeDoc on Kubernetes
+type: application
+version: 1.0.2
+appVersion: "1.12.2"
+kubeVersion: ">=1.19.0"
+icon: https://github.com/hedgedoc.png
+keywords:
+  - hedgedoc
+  - markdown
+  - collaborative-editing
+  - notes
+home: https://hedgedoc.org
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/hedgedoc
+  - https://github.com/hedgedoc/hedgedoc
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

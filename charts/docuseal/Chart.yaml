@@ -1,0 +1,20 @@
+apiVersion: v2
+name: docuseal
+description: A Helm chart for DocuSeal, a self-hosted document signing platform
+type: application
+version: 1.0.22
+appVersion: "3.3.5"
+kubeVersion: ">=1.19.0"
+keywords:
+  - docuseal
+  - documents
+  - signing
+  - esignature
+home: https://www.docuseal.com/
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/docuseal
+  - https://github.com/docusealco/docuseal
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

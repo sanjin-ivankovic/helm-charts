@@ -1,0 +1,147 @@
+## Default values for ntfy
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: binwiederhier/ntfy
+  tag: "v2.37.2@sha256:1875ddcf815c8a3c981d6d78c67a93452d0abba79b1ab9520b1f5f5238902bd7"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+## @param priorityClassName Priority class assigned to the pod.
+##
+# ntfy keeps its message cache and user database in SQLite files on one
+# ReadWriteOnce volume, so it runs as one replica with Recreate.
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+priorityClassName: ""
+
+## @section Service link parameters
+
+## @param enableServiceLinks Whether Kubernetes injects service-discovery env vars into the pod.
+##
+# A Service named ntfy makes Kubernetes inject NTFY_PORT, NTFY_SERVICE_HOST, ...
+# into ntfy's own NTFY_* configuration namespace. None collide with a ntfy
+# setting today; keeping them out means a future flag cannot be set by accident.
+enableServiceLinks: false
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints for pod distribution.
+## @param podSecurityContext Pod-level security context. The image runs as root by default; ntfy needs no root, so the pod runs as uid/gid 1000 and fsGroup makes the volume writable.
+## @param securityContext Container-level security context. ntfy writes only to the data volume, so the root filesystem is read-only and every capability is dropped.
+##
+resources:
+  requests:
+    memory: "32Mi"
+    cpu: "10m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target (must match NTFY_LISTEN_HTTP).
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claims.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.mountPath Container path where the data volume is mounted.
+## @param persistence.size Size of the data volume.
+## @param persistence.accessModes Access modes for the data volume.
+##
+# Holds cache.db (message cache) and user.db (users, ACL, tokens).
+persistence:
+  enabled: true
+  storageClass: ""
+  mountPath: /var/lib/ntfy
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env Non-secret ntfy settings as NTFY_* environment variables.
+##
+# Every server.yml option has an NTFY_* variable (auth-default-access ->
+# NTFY_AUTH_DEFAULT_ACCESS). The listen port is not 80 because the pod runs
+# as non-root; it must match service.targetPort. Both database files must sit
+# on the data volume.
+env:
+  NTFY_LISTEN_HTTP: ":8080"
+  NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+  NTFY_AUTH_FILE: /var/lib/ntfy/user.db
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret holding the declarative users and tokens. Empty disables secret-backed injection.
+## @param secretKeys.authUsers Key in existingSecret for NTFY_AUTH_USERS (comma-separated `name:bcrypt-hash:role`).
+## @param secretKeys.authTokens Key in existingSecret for NTFY_AUTH_TOKENS (comma-separated `name:tk_...[:label]`).
+##
+# Users and tokens provisioned from config replace every manual change on the
+# next restart, and users removed from the list are deleted. Access rules are
+# not secret and go in env as NTFY_AUTH_ACCESS.
+existingSecret: ""
+secretKeys:
+  authUsers: NTFY_AUTH_USERS
+  authTokens: NTFY_AUTH_TOKENS
+
+## @section Health Probe parameters
+
+## @param probes.liveness Liveness probe configuration.
+## @param probes.readiness Readiness probe configuration.
+##
+probes:
+  liveness:
+    enabled: true
+    httpGetPath: /v1/health
+    httpGetPort: http
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    failureThreshold: 3
+    timeoutSeconds: 5
+  readiness:
+    enabled: true
+    httpGetPath: /v1/health
+    httpGetPort: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 5

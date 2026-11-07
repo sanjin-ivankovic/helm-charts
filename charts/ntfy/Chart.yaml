@@ -1,0 +1,21 @@
+apiVersion: v2
+name: ntfy
+description: A Helm chart for ntfy, a self-hosted HTTP-based pub-sub notification service
+type: application
+version: 1.0.4
+appVersion: "v2.37.2"
+kubeVersion: ">=1.19.0"
+keywords:
+  - ntfy
+  - notifications
+  - push
+  - pubsub
+  - self-hosted
+home: https://ntfy.sh/
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/ntfy
+  - https://github.com/binwiederhier/ntfy
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

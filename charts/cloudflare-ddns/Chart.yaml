@@ -1,0 +1,20 @@
+apiVersion: v2
+name: cloudflare-ddns
+description: A Helm chart for Cloudflare DDNS (favonia/cloudflare-ddns) on Kubernetes
+type: application
+version: 1.0.3
+appVersion: "1.18.0"
+kubeVersion: ">=1.19.0"
+keywords:
+  - cloudflare
+  - ddns
+  - dns
+  - networking
+home: https://github.com/favonia/cloudflare-ddns
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/cloudflare-ddns
+  - https://github.com/favonia/cloudflare-ddns
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

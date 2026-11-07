@@ -1,0 +1,17 @@
+1. Get the application URL by running these commands:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "onetimesecret.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  Visit http://127.0.0.1:{{ .Values.service.port }}
+
+  In production it is served at: http{{ if .Values.config.ssl }}s{{ end }}://{{ .Values.config.host }}
+
+2. Check the deployment status:
+  kubectl --namespace {{ .Release.Namespace }} get deployment {{ include "onetimesecret.fullname" . }}
+
+3. View logs:
+  kubectl --namespace {{ .Release.Namespace }} logs -l app.kubernetes.io/name={{ include "onetimesecret.name" . }}
+
+WARNING: The SECRET value in {{ .Values.existingSecret | default "the secret referenced by existingSecret" }}
+is the encryption key for all stored secrets. NEVER rotate it once the app
+has been used — existing secrets become permanently undecryptable.
+
+Note: IngressRoute is managed separately via Kustomize for better flexibility.

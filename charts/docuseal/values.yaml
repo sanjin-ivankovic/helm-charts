@@ -1,0 +1,134 @@
+## Default values for DocuSeal
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: docuseal/docuseal
+  tag: "3.3.5@sha256:d3fb5bd51509aac293e858c37e113882a70d5b97975fa44bfbf232bbfb17175d"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+## @param priorityClassName Priority class assigned to the pod.
+##
+# DocuSeal writes uploads to a single ReadWriteOnce volume, so it runs as one
+# replica with Recreate (never two pods contending for the same PVC).
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints for pod distribution.
+## @param podSecurityContext Pod-level security context. DocuSeal's image creates a non-root user (uid 2000) and needs no root at startup; fsGroup makes the /data/docuseal PVC group-writable (the image does not chown that dir).
+## @param securityContext Container-level security context. readOnlyRootFilesystem is false because DocuSeal writes uploads/SQLite under its data dir (Trivy KSV-0014); revisit once writable paths are confirmed.
+##
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 2000
+  runAsGroup: 2000
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claims.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.mountPath Container path where the data volume is mounted.
+## @param persistence.size Size of the data volume.
+## @param persistence.accessModes Access modes for the data volume.
+##
+persistence:
+  enabled: true
+  storageClass: "longhorn"
+  mountPath: /data
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env Non-secret environment variables passed to the container (application-native names).
+##
+# DATABASE_URL and SECRET_KEY_BASE are injected from existingSecret, not here.
+# HOST sets the public hostname used for absolute URLs (emails, signing links).
+# Do NOT set FORCE_SSL=true when a reverse proxy terminates TLS and forwards
+# plain HTTP — Puma rejects the plain-HTTP upstream and health probes fail.
+env:
+  HOST: docuseal.example.local
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret holding DATABASE_URL and SECRET_KEY_BASE.
+## @param secretKeys.databaseUrl Key in existingSecret for the database connection string.
+## @param secretKeys.secretKeyBase Key in existingSecret for the Rails secret key base.
+##
+existingSecret: ""
+secretKeys:
+  databaseUrl: DATABASE_URL
+  secretKeyBase: SECRET_KEY_BASE
+
+## @section Health Probe parameters
+
+## @param probes.liveness Liveness probe configuration.
+## @param probes.readiness Readiness probe configuration.
+##
+# DocuSeal serves HTTP on / once Rails has booted and migrations have run.
+# First boot runs migrations, so readiness gets a generous failureThreshold.
+probes:
+  liveness:
+    enabled: true
+    httpGetPath: /
+    httpGetPort: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    failureThreshold: 5
+    timeoutSeconds: 10
+  readiness:
+    enabled: true
+    httpGetPath: /
+    httpGetPort: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 15
+    failureThreshold: 20
+    timeoutSeconds: 10

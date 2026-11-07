@@ -1,0 +1,38 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+  $ helm get all {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Application: HedgeDoc
+Version: {{ .Chart.AppVersion }}
+
+HedgeDoc is a real-time collaborative Markdown editor.
+
+To access the application:
+
+1. Port-forward to the service:
+   kubectl port-forward svc/{{ include "hedgedoc.fullname" . }} 3000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+2. Open your browser to http://localhost:3000
+   (links and assets follow CMD_DOMAIN, so a port-forward is only useful
+   for a smoke test).
+
+3. Check the deployment status:
+   kubectl get deployments -n {{ .Release.Namespace }}
+   kubectl get pods -n {{ .Release.Namespace }}
+
+4. View logs:
+   kubectl logs -f deployment/{{ include "hedgedoc.fullname" . }} -n {{ .Release.Namespace }}
+
+{{- if not .Values.existingSecret }}
+
+WARNING: existingSecret is empty. HedgeDoc will generate a random session
+secret on every start (logging all users out) and has no database password.
+{{- end }}
+
+Note: Ingress/IngressRoute is managed separately in your ArgoCD applications.
+The reverse proxy must pass WebSocket upgrades on /socket.io/.

@@ -1,0 +1,20 @@
+apiVersion: v2
+name: memos
+description: A Helm chart for Memos, a self-hosted, lightweight note-taking service
+type: application
+version: 1.0.6
+appVersion: "26.11.0"
+kubeVersion: ">=1.19.0"
+keywords:
+  - memos
+  - notes
+  - memo
+  - self-hosted
+home: https://usememos.com/
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/memos
+  - https://github.com/usememos/memos
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

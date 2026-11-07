@@ -1,0 +1,153 @@
+## Default values for HedgeDoc
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use (with pinned digest).
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: quay.io/hedgedoc/hedgedoc
+  tag: "1.12.2-alpine@sha256:9cea1974de89993a8bcfa1b37b6b4d7f489d6efb604097e27af2568177a86632"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+## @param priorityClassName Priority class assigned to the pod.
+##
+# Realtime note state lives in the single Node.js process and uploads sit on a
+# ReadWriteOnce volume, so HedgeDoc runs as one replica with Recreate.
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+priorityClassName: ""
+
+## @section Service link parameters
+
+## @param enableServiceLinks Whether Kubernetes injects service-discovery env vars into the pod.
+##
+enableServiceLinks: false
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints for pod distribution.
+## @param podSecurityContext Pod-level security context. The image has no USER directive but bakes in the hedgedoc user (uid/gid 10000). The entrypoint only chowns the uploads dir and gosu-drops when it starts as root; starting as 10000 skips that branch, so no SETUID/SETGID/CHOWN capability is needed. fsGroup 10000 makes the uploads PVC writable.
+## @param securityContext Container-level security context. The root filesystem is read-only; os.tmpdir() is backed by an emptyDir at /tmp and uploads by the PVC.
+##
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10000
+  runAsGroup: 10000
+  fsGroup: 10000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target (must match env.CMD_PORT).
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable the uploads persistent volume claim.
+## @param persistence.storageClass Storage class for the PVC (empty string = cluster default, "-" = no class).
+## @param persistence.mountPath Container path for uploaded images (HedgeDoc's uploadsPath).
+## @param persistence.size Size of the uploads volume.
+## @param persistence.accessModes Access modes for the uploads volume.
+##
+# Only used with CMD_IMAGE_UPLOAD_TYPE=filesystem. Note content lives in the
+# database; this volume holds pasted/uploaded images.
+persistence:
+  enabled: true
+  storageClass: ""
+  mountPath: /hedgedoc/public/uploads
+  size: 5Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env Non-secret environment variables passed to the container (CMD_* names).
+##
+# Public URL (CMD_DOMAIN, CMD_PROTOCOL_USESSL), database host/name/user and
+# OAuth2 endpoints go here. Passwords and client secrets come from
+# existingSecret below, never from here.
+env:
+  CMD_PORT: "3000"
+  CMD_IMAGE_UPLOAD_TYPE: "filesystem"
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret providing the keys mapped under secretKeys. Empty disables secret-backed injection.
+## @param secretKeys.dbPassword Key holding the database password (CMD_DB_PASSWORD). Set to "" when CMD_DB_URL or SQLite is used instead.
+## @param secretKeys.sessionSecret Key holding the session cookie signing secret (CMD_SESSION_SECRET). Without it HedgeDoc generates one per start and logs every user out on restart.
+## @param secretKeys.oauth2ClientSecret Key holding the OAuth2 client secret (CMD_OAUTH2_CLIENT_SECRET). Set to "" when OAuth2 login is not used.
+##
+existingSecret: ""
+secretKeys:
+  dbPassword: CMD_DB_PASSWORD
+  sessionSecret: CMD_SESSION_SECRET
+  oauth2ClientSecret: CMD_OAUTH2_CLIENT_SECRET
+
+## @section Health Probe parameters
+
+## @param probes.startup Startup probe configuration.
+## @param probes.liveness Liveness probe configuration.
+## @param probes.readiness Readiness probe configuration.
+##
+# /_health is always served (independent of CMD_ENABLE_STATS_API) and skips
+# session middleware. The startup probe budgets 3 minutes for first-boot
+# database migrations.
+probes:
+  startup:
+    enabled: true
+    httpGetPath: /_health
+    httpGetPort: 3000
+    periodSeconds: 5
+    failureThreshold: 36
+    timeoutSeconds: 5
+  liveness:
+    enabled: true
+    httpGetPath: /_health
+    httpGetPort: 3000
+    initialDelaySeconds: 0
+    periodSeconds: 30
+    failureThreshold: 3
+    timeoutSeconds: 5
+  readiness:
+    enabled: true
+    httpGetPath: /_health
+    httpGetPort: 3000
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 5

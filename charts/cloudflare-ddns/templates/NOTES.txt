@@ -1,0 +1,23 @@
+Cloudflare DDNS is now running. It has no listening port or web UI — it
+detects the public IP and updates Cloudflare DNS records on a schedule.
+
+1. Check the deployment status:
+  kubectl --namespace {{ .Release.Namespace }} get deployment {{ include "cloudflare-ddns.fullname" . }}
+
+2. Watch the logs (each run reports the detected IP and the records it touched):
+  kubectl --namespace {{ .Release.Namespace }} logs -l app.kubernetes.io/name={{ include "cloudflare-ddns.name" . }} -f
+
+3. Verify a record actually resolves to your current public IP:
+  dig +short <domain> @1.1.1.1
+
+{{- if not .Values.existingSecret }}
+
+WARNING: `existingSecret` is not set, so no Cloudflare API token is mounted
+and every update will fail to authenticate. Create a secret holding a token
+with the Zone:DNS:Edit permission and set `existingSecret` to its name.
+{{- end }}
+{{- if not .Values.env.DOMAINS }}
+
+WARNING: `env.DOMAINS` is empty, so no records will be updated. Set it to a
+comma-separated list of the domains this updater should keep current.
+{{- end }}
