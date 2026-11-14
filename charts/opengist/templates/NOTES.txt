@@ -1,0 +1,16 @@
+OpenGist is deployed as {{ include "opengist.fullname" . }}.
+
+1. Reach it locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "opengist.fullname" . }} 6157:{{ .Values.service.port }}
+  Open http://127.0.0.1:6157 and register: the first account becomes the
+  admin. Then turn on "Disable signup" in the admin panel.
+{{- if not .Values.existingSecret }}
+
+WARNING: existingSecret is empty, so OpenGist generates a new OG_SECRET_KEY on
+every start and every restart logs all users out.
+{{- end }}
+{{- if not .Values.env.OG_EXTERNAL_URL }}
+
+NOTE: env.OG_EXTERNAL_URL is not set; links and API responses use the
+request's host instead of the public URL.
+{{- end }}

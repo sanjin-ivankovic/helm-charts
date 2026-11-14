@@ -1,0 +1,278 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for homelab Helm charts with automated chart version bumping",
+  "dependencyDashboard": {
+    "title": "Renovate Dashboard: Helm Charts",
+    "header": "Tracks dependency updates for the homelab Helm charts.\n\n**After merging**: CI publishes updated charts to the [OCI registry](https://registry.example.com/example-org/helm-charts); [argo-apps](https://source.example.com/example-org/argo-apps) picks them up on its next Renovate run.\n\n---",
+    "footer": "---\n\n**Resources**: [OCI Registry](https://registry.example.com/example-org/helm-charts) | [Renovate Config](https://source.example.com/example-org/helm-charts/-/blob/main/renovate.json) | [CLAUDE.md](https://source.example.com/example-org/helm-charts/-/blob/main/.claude/CLAUDE.md)"
+  },
+  "extends": [
+    "local>homelab/renovate",
+    "local>homelab/renovate:dockerfile-args",
+    "local>homelab/renovate:ci-components",
+    "gitlab>renovate-bot/renovate-runner"
+  ],
+  "ignorePaths": [
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/test/**",
+    "**/tests/**",
+    ".archive/**",
+    "**/.archive/**",
+    ".ci/scaffold/**"
+  ],
+  "enabledManagers": [
+    "helm-values",
+    "custom.regex",
+    "dockerfile",
+    "gitlabci",
+    "pre-commit"
+  ],
+  "packageRules": [
+    {
+      "description": "Chart app updates - graduated stabilization soak by update type (patch 1d / minor 3d / major 7d). NOTE: config:best-practices (via config:recommended) sets minimumReleaseAgeBehaviour=timestamp-required, so a release WITHOUT a release timestamp is held 'pending' indefinitely. All current chart images live on ghcr.io / quay.io / docker.io, which return timestamps, so none stall. If a timestamp-less registry (e.g. lscr.io) is ever added, set minimumReleaseAgeBehaviour=timestamp-optional for those packages so they don't hang. Security/CVE updates are exempt via vulnerabilityAlerts. Digest-only re-pins carry no soak (handled by the digest rule below).",
+      "matchFileNames": [
+        "charts/**/values.yaml"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "minimumReleaseAge": "1 day"
+    },
+    {
+      "description": "Chart app updates - minor soak.",
+      "matchFileNames": [
+        "charts/**/values.yaml"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Chart app updates - major soak.",
+      "matchFileNames": [
+        "charts/**/values.yaml"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "Docker digest pinning - Pin floating tags to reproducible digests",
+      "matchFileNames": [
+        "charts/**/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "pin"
+      ],
+      "groupName": "pin-docker-digests",
+      "commitMessagePrefix": "fix(docker):",
+      "labels": [
+        "docker",
+        "pinning"
+      ],
+      "prPriority": 8
+    },
+    {
+      "description": "Allow unstable versions for SearXNG (rolling release tags)",
+      "matchPackageNames": [
+        "searxng/searxng"
+      ],
+      "versioning": "loose",
+      "ignoreUnstable": false
+    },
+    {
+      "description": "Allow date-based versions for IT-Tools (date+commit tag format)",
+      "matchPackageNames": [
+        "ghcr.io/corentinth/it-tools"
+      ],
+      "versioning": "loose",
+      "ignoreUnstable": false
+    },
+    {
+      "description": "pgAdmin4 - restrict to semver tags. Docker Hub also publishes date-formatted tags (2021-12-15-2 etc). allowedVersions does ALL the filtering — only semver tags become PRs. maxMajorIncrement:0 means 'no cap on the major-version jump' (0 = unlimited per Renovate docs), so a large but legitimate semver major bump is never withheld; the date-tag noise is already excluded by allowedVersions.",
+      "matchPackageNames": [
+        "dpage/pgadmin4"
+      ],
+      "allowedVersions": "/^[0-9]+\\.[0-9]+\\.[0-9]+$/",
+      "maxMajorIncrement": 0
+    },
+    {
+      "description": "FreshRSS - restrict to semver tags. Docker Hub also publishes integer-only tags (7974, 8392…). allowedVersions excludes those; maxMajorIncrement:0 (unlimited major jump) keeps Renovate from withholding a large-but-legitimate semver major bump. Same rationale as pgadmin4 above.",
+      "matchPackageNames": [
+        "freshrss/freshrss"
+      ],
+      "allowedVersions": "/^[0-9]+\\.[0-9]+\\.[0-9]+$/",
+      "maxMajorIncrement": 0
+    },
+    {
+      "description": "PostgreSQL server image - cap at major 18. A Postgres major is a data-format migration (dump/restore runbook in argo-apps), never an unattended bump; raise together with argo-apps' postgres-db-create-jobs '<19' cap. The backup CronJob shares image.* with the server on purpose, so no sub-image exclusion is needed for this chart.",
+      "matchFileNames": [
+        "charts/postgresql/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "postgres"
+      ],
+      "allowedVersions": "<19"
+    },
+    {
+      "description": "Valkey server image - cap at major 9. Shared-instance data (job queues, app state) makes a major a planned migration, never an unattended bump; the backup CronJob shares image.* with the server on purpose, so no sub-image exclusion is needed for this chart.",
+      "matchFileNames": [
+        "charts/valkey/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "valkey/valkey"
+      ],
+      "allowedVersions": "<10"
+    },
+    {
+      "description": "CouchDB (obsidian chart) - cap at major 3. A CouchDB major changes the on-disk format and config layout, so it is a planned migration, never an unattended bump.",
+      "matchFileNames": [
+        "charts/obsidian/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "couchdb"
+      ],
+      "allowedVersions": "<4"
+    },
+    {
+      "description": "linuxserver.io images - treat a release without a timestamp as stable instead of holding it pending forever (see the soak rule note on timestamp-less registries).",
+      "matchPackageNames": [
+        "ghcr.io/linuxserver/**"
+      ],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "PRIMARY chart image VERSION updates (tag bumps) - auto-bumps chart patch version and rewrites appVersion. The sed is unconditional within its branch, so this rule must exclude every init/sidecar sub-image (see the sub-image rule below) — otherwise whichever image bumped last writes ITS tag into appVersion (busybox once overwrote pgadmin's).",
+      "matchFileNames": [
+        "charts/*/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch"
+      ],
+      "matchPackageNames": [
+        "!busybox",
+        "!couchdb",
+        "!jez500/seleniumbase-scrapper"
+      ],
+      "commitMessagePrefix": "chore({{parentDir}}):",
+      "labels": [
+        "docker"
+      ],
+      "prPriority": 20,
+      "groupName": "{{parentDir}}",
+      "groupSlug": "chart-{{parentDir}}",
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "{{packageFileDir}}/Chart.{yaml,yml}"
+          ],
+          "matchStrings": [
+            "version:\\s*[\"']?(?<version>[^\"'\\s]+)[\"']?"
+          ],
+          "bumpType": "patch"
+        }
+      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "sed -i 's/^appVersion:.*/appVersion: \"{{{newVersion}}}\"/' {{{packageFileDir}}}/Chart.yaml"
+        ],
+        "fileFilters": [
+          "charts/*/Chart.yaml"
+        ],
+        "executionMode": "branch"
+      }
+    },
+    {
+      "description": "Init/sidecar SUB-IMAGE tag bumps - same per-chart grouping and chart patch bump as the primary rule, but NO appVersion rewrite (appVersion tracks the primary application image only). Add any new init/sidecar image name here AND to the exclusion in the primary rule above.",
+      "matchFileNames": [
+        "charts/*/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch"
+      ],
+      "matchPackageNames": [
+        "busybox",
+        "couchdb",
+        "jez500/seleniumbase-scrapper"
+      ],
+      "commitMessagePrefix": "chore({{parentDir}}):",
+      "labels": [
+        "docker"
+      ],
+      "prPriority": 20,
+      "groupName": "{{parentDir}}",
+      "groupSlug": "chart-{{parentDir}}",
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "{{packageFileDir}}/Chart.{yaml,yml}"
+          ],
+          "matchStrings": [
+            "version:\\s*[\"']?(?<version>[^\"'\\s]+)[\"']?"
+          ],
+          "bumpType": "patch"
+        }
+      ]
+    },
+    {
+      "description": "Chart image DIGEST-only re-pins - separate branch so they never collide with tag bumps for the same image",
+      "matchFileNames": [
+        "charts/*/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "commitMessagePrefix": "fix({{parentDir}}):",
+      "labels": [
+        "docker",
+        "digest"
+      ],
+      "prPriority": 18,
+      "groupName": "{{parentDir}}-digest",
+      "groupSlug": "chart-{{parentDir}}-digest",
+      "additionalBranchPrefix": "{{parentDir}}-digest-",
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "{{packageFileDir}}/Chart.{yaml,yml}"
+          ],
+          "matchStrings": [
+            "version:\\s*[\"']?(?<version>[^\"'\\s]+)[\"']?"
+          ],
+          "bumpType": "patch"
+        }
+      ]
+    }
+  ],
+  "prFooter": "This MR was created automatically by Renovate. Review changes carefully before merging.\n\n**After merging**: The CI/CD pipeline will publish updated charts to the [OCI registry](https://registry.example.com/example-org/helm-charts)."
+}

@@ -1,0 +1,176 @@
+## Default values for Stirling PDF
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: stirlingtools/stirling-pdf
+  tag: "3.3.0@sha256:ed7b1775c6706b5e5ea24fa6155f078eff1027bd35a17d21834e4407036025e6"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+replicaCount: 1
+# updateStrategy: If not set (null) and persistence is enabled, defaults to RollingUpdate with maxSurge: 0
+# This ensures old pod terminates before new one starts (required for ReadWriteOnce PVCs)
+updateStrategy: null
+
+## @param priorityClassName Priority class assigned to the pod.
+##
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Control how pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains.
+##
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+
+## @section Security parameters
+
+## @param podSecurityContext Pod-level security context. The container must start as uid 0; the image entrypoint drops to stirlingpdfuser before the JVM starts.
+## @param containerSecurityContext Container-level security context. readOnlyRootFilesystem is false because Stirling-PDF writes to /configs, /tmp and processing dirs (Trivy KSV-0014); set it true once those paths are backed by writable mounts and verified on redeploy.
+##
+# The entrypoint (/scripts/init.sh -> init-without-ocr.sh) needs root to create
+# the /usr/local/bin diagnostics symlinks and chown /configs and /tmp/stirling-pdf,
+# then setpriv's down to stirlingpdfuser to launch the JVM. Under `set -euo
+# pipefail` a non-root start dies at the first `ln -sf` with EACCES, so
+# runAsNonRoot: true here makes the pod unschedulable (CreateContainerConfigError:
+# "container's runAsUser breaks non-root policy"). The JVM itself never runs as root.
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  runAsGroup: 0
+  fsGroup: 0
+  seccompProfile:
+    type: RuntimeDefault
+
+# The entrypoint runs as root and needs these four to reach the JVM: SETUID and
+# SETGID for the setpriv drop to stirlingpdfuser (without them setpriv fails with
+# "setresuid failed: Operation not permitted" and the container exits), CHOWN and
+# DAC_OVERRIDE to fix ownership of /configs, /logs, /customFiles, /pipeline and
+# /storage on freshly provisioned volumes. Verified minimal: dropping any one of
+# the four fails startup. FOWNER is not required.
+containerSecurityContext:
+  readOnlyRootFilesystem: false
+  privileged: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - DAC_OVERRIDE
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claim.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.size Size of the persistent volume.
+## @param persistence.accessModes Access modes for the PVC.
+##
+persistence:
+  enabled: true
+  storageClass: "longhorn"
+  size: 2Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env.DOCKER_ENABLE_SECURITY Set to false to disable login functionality.
+## @param env.SECURITY_ENABLELOGIN Enable login (true/false).
+## @param env.SYSTEM_DEFAULTLOCALE Default locale for the application.
+##
+env:
+  DOCKER_ENABLE_SECURITY: "true"
+  SECURITY_ENABLELOGIN: "true"
+  SYSTEM_DEFAULTLOCALE: "en-US"
+
+## @section Health Probe parameters
+
+## @param livenessProbe Liveness probe configuration.
+## @param readinessProbe Readiness probe configuration.
+##
+## Note: Using TCP probes instead of HTTP to avoid authentication issues
+## when SECURITY_ENABLELOGIN is enabled. TCP probe verifies port 8080 is
+## listening without requiring authentication.
+##
+livenessProbe:
+  tcpSocket:
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  tcpSocket:
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+## @section OIDC single sign-on parameters (Stirling-PDF >= 3.0, every plan)
+
+## @param oidc.enabled Render the SECURITY_OAUTH2_* environment variables.
+## @param oidc.provider Lowercase provider name. It is also the last segment of the callback URL <base>/login/oauth2/code/<provider>, which must be registered at the IdP verbatim.
+## @param oidc.issuer Issuer URL serving /.well-known/openid-configuration (Authentik needs the trailing slash).
+## @param oidc.clientId OAuth2 client ID.
+## @param oidc.scopes Scopes to request, comma-separated.
+## @param oidc.useAsUsername Claim used as the Stirling-PDF username.
+## @param oidc.autoCreateUser Create the account on first SSO login.
+## @param oidc.blockRegistration Deny SSO logins for users an admin has not created first.
+## @param oidc.redirectBaseUrl Public base URL for the callback. Only needed when the proxy hides scheme or host; empty builds it per request.
+## @param oidc.existingSecret Existing Secret holding the client secret. Required when oidc.enabled is true.
+## @param oidc.secretKeys.clientSecret Key in existingSecret that holds the client secret.
+##
+oidc:
+  enabled: false
+  provider: "oidc"
+  issuer: ""
+  clientId: ""
+  scopes: "openid, profile, email"
+  # Must be one of email, mail, name, username, preferred_username, uid,
+  # login, nickname, given_name, middle_name, family_name, preferred_name or
+  # profile. Any other claim (sub, upn, oid) aborts startup.
+  useAsUsername: "email"
+  autoCreateUser: true
+  blockRegistration: false
+  redirectBaseUrl: ""
+  existingSecret: ""
+  secretKeys:
+    clientSecret: SECURITY_OAUTH2_CLIENTSECRET

@@ -1,0 +1,209 @@
+## Default values for SearXNG
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: searxng/searxng
+  tag: "2026.11.13-8a53a6aa5@sha256:82b222dd1854c43241874874fbc985006556230804dc819ef2a639eeb574d0e2"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+replicaCount: 1
+# updateStrategy: If not set (null) and persistence is enabled, defaults to RollingUpdate with maxSurge: 0
+# This ensures old pod terminates before new one starts (required for ReadWriteOnce PVCs)
+# To override, uncomment and customize:
+# updateStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 0
+#     maxUnavailable: 1
+# Or use Recreate strategy for zero-downtime tolerance:
+# updateStrategy:
+#   type: Recreate
+updateStrategy: null
+
+## @param priorityClassName Priority class assigned to the pod.
+##
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement (empty object = no node selector).
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Control how pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains.
+## @param podSecurityContext Pod-level security context. SearXNG's image owns its files as uid 977 and its entrypoint skips the root-only chown when run as non-root, so it runs as 977; fsGroup makes the cache PVC group-writable.
+## @param securityContext Container-level security context (applied to the config-init init container and the main container). readOnlyRootFilesystem is false because SearXNG writes its cache to /var/cache/searxng (Trivy KSV-0014); the config dir is already a writable emptyDir, so this can likely flip to true after a redeploy check.
+##
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 977
+  runAsGroup: 977
+  fsGroup: 977
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Init Container parameters
+
+## @param initContainer.enabled Enable init container for config generation.
+## @param initContainer.image The init container image.
+## @param initContainer.resources Resource requests and limits for the init container (it only writes settings.yml).
+##
+initContainer:
+  enabled: true
+  image: busybox:1.38@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
+  resources:
+    requests:
+      memory: "16Mi"
+      cpu: "10m"
+    limits:
+      memory: "32Mi"
+      cpu: "100m"
+
+## @section Health Probe parameters
+
+## @param probes.liveness Liveness probe on /healthz (enabled, path, timings).
+## @param probes.readiness Readiness probe on /healthz (enabled, path, timings).
+##
+# The probes send X-Real-IP: SearXNG's bot detection logs an ERROR for every
+# request that carries neither X-Forwarded-For nor X-Real-IP.
+probes:
+  liveness:
+    enabled: true
+    path: /healthz
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    failureThreshold: 5
+    timeoutSeconds: 5
+  readiness:
+    enabled: true
+    path: /healthz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 6
+    timeoutSeconds: 5
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable persistent volume claim.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.size Size of the persistent volume.
+## @param persistence.accessModes Access modes for the PVC.
+##
+persistence:
+  enabled: false
+  storageClass: ""
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env.uwsgiWorkers Number of uWSGI workers.
+## @param env.uwsgiThreads Number of uWSGI threads per worker.
+##
+env:
+  uwsgiWorkers: "2"
+  uwsgiThreads: "2"
+
+## @section Secret parameters
+
+## @param secrets.secretName Name of the secret containing SearXNG configuration.
+## @param secrets.keys Configuration keys in the secret.
+##
+secrets:
+  secretName: searxng-secret
+  keys:
+    baseUrl: base-url
+    secretKey: secret-key
+    valkeyPassword: valkey-password
+
+## @section Valkey configuration
+
+## @param valkey.url Valkey connection URL (without password), written to settings.yml `valkey.url`. The database index in the URL path is honored as-is.
+##
+valkey:
+  url: "redis://valkey-master.valkey.svc.cluster.local:6379/0"
+
+## @section General settings
+
+## @param general.contactUrl Operator contact (`mailto:` or https URL), written to settings.yml `general.contact_url`. The Wikipedia, Wikidata and OpenStreetMap engines refuse to load without it, because it goes into the User-Agent those services require.
+##
+general:
+  contactUrl: ""
+
+## @section Search settings
+
+## @param search.formats Response formats SearXNG serves (`html`, `json`, `csv`, `rss`). A format missing here answers 403, so API clients need `json`.
+##
+search:
+  formats:
+    - html
+
+## @section Engine configuration
+
+## @param engines Per-engine overrides merged into settings.yml under `engines:`.
+##
+## Entries are merged by `name` onto SearXNG's shipped engine list
+## (`use_default_settings: true`), so only the keys you override are needed —
+## an entry of `{name: brave, disabled: true}` turns off a built-in engine
+## without restating its config.
+##
+## `apiKeySecretKey` is chart-specific and is NOT written to settings.yml as-is.
+## It names a key in a Kubernetes Secret; the chart injects that key as an env
+## var and the init container expands it into `api_key`, so the credential never
+## appears in the rendered manifest. `apiKeySecretName` optionally selects a
+## different Secret than `secrets.secretName`.
+##
+## Engines shipped with `inactive: true` upstream (braveapi, google, kagi, ...)
+## must set `inactive: false` here; `disabled` alone will not load them.
+##
+## engines:
+##   - name: braveapi
+##     engine: braveapi
+##     shortcut: brapi
+##     categories: [general, web]
+##     inactive: false
+##     results_per_page: 20
+##     apiKeySecretKey: brave-api-key
+##   - name: brave
+##     disabled: true
+##
+engines: []

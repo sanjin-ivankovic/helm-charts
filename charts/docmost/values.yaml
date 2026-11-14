@@ -1,0 +1,153 @@
+## Default values for docmost
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use, pinned by digest (tag@sha256:...).
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: docmost/docmost
+  tag: "0.97.0@sha256:40c454d74ffdd9ecb15833e4d96f3a630d59aad862a1869381ae6ee086454419"
+  pullPolicy: IfNotPresent
+
+## @param nameOverride String to partially override the chart name.
+## @param fullnameOverride String to fully override the resource names.
+##
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment. Recreate while the data volume is ReadWriteOnce.
+## @param priorityClassName Priority class assigned to the pod.
+##
+## Keep 1 with STORAGE_DRIVER=local: attachments live on one ReadWriteOnce volume.
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the container.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints for pod distribution.
+##
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "1"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+
+## @section Security parameters
+
+## @param podSecurityContext Pod-level security context. Set runAsUser/runAsGroup/fsGroup to the uid the image runs as.
+## @param securityContext Container-level security context for both containers. /tmp and the client bundle are emptyDir mounts, so the root filesystem stays read-only.
+##
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Init Container parameters
+
+## @param clientDist.resources Resources of the init container that copies the client bundle into a writable emptyDir.
+## @param clientDist.sizeLimit Size limit of that emptyDir. The 0.97.0 bundle is about 17 MB.
+##
+clientDist:
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "10m"
+    limits:
+      memory: "128Mi"
+      cpu: "500m"
+  sizeLimit: 100Mi
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable the data PVC.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.mountPath Container path where the data volume is mounted.
+## @param persistence.size Size of the data volume.
+## @param persistence.accessModes Access modes for the data volume.
+##
+persistence:
+  enabled: true
+  storageClass: ""
+  mountPath: /app/data/storage
+  size: 5Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env Non-secret environment variables passed to the container. Set APP_URL to the public URL.
+##
+env:
+  STORAGE_DRIVER: local
+  DISABLE_TELEMETRY: "true"
+
+## @section Secret parameters
+
+## @param existingSecret Secret exposed through envFrom. It holds APP_SECRET (32+ characters), DATABASE_URL and REDIS_URL; Docmost does not start without them.
+##
+existingSecret: ""
+
+## @section Health Probe parameters
+
+## @param probes.startup Startup probe configuration. Database migrations run before the server listens.
+## @param probes.liveness Liveness probe configuration. /api/health/live checks nothing but the process.
+## @param probes.readiness Readiness probe configuration. /api/health checks PostgreSQL and Redis.
+##
+probes:
+  startup:
+    enabled: true
+    httpGetPath: /api/health/live
+    periodSeconds: 5
+    failureThreshold: 60
+    timeoutSeconds: 5
+  liveness:
+    enabled: true
+    httpGetPath: /api/health/live
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    failureThreshold: 5
+    timeoutSeconds: 5
+  readiness:
+    enabled: true
+    httpGetPath: /api/health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 6
+    timeoutSeconds: 5

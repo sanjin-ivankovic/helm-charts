@@ -1,0 +1,20 @@
+apiVersion: v2
+name: docmost
+description: Collaborative wiki and documentation platform
+type: application
+version: 1.0.1
+appVersion: "0.97.0"
+kubeVersion: ">=1.19.0"
+keywords:
+  - docmost
+  - wiki
+  - documentation
+  - self-hosted
+home: https://docmost.com/
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/docmost
+  - https://github.com/docmost/docmost
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

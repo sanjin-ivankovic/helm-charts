@@ -1,0 +1,141 @@
+## Default values for Cloudflared
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: cloudflare/cloudflared
+  tag: "2026.11.0@sha256:b94b96edf2c9c4360f8879c8580cfaa99077f19c849ec595ca2f711b27d4f344"
+  pullPolicy: IfNotPresent
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+##
+replicaCount: 1
+updateStrategy: {}
+# updateStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 1
+#     maxUnavailable: 0
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity If specified, the pod's scheduling constraints. Affinity is a group of affinity scheduling rules.
+## @param tolerations Tolerates any taint that matches the triple `<key,value,effect>` using the matching operator `<operator>`.
+## @param topologySpreadConstraints Control how pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains.
+## @param podSecurityContext Pod-level security context. The cloudflared image runs as the non-root nonroot user (uid 65532) and writes nothing to disk, so the root filesystem stays read-only (only /tmp is a writable emptyDir).
+## @param securityContext Container-level security context (read-only rootfs, drop all capabilities, no privilege escalation).
+## @param priorityClassName The priority class name to use for the tunnel.
+##
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+priorityClassName: ""
+
+## @section Service parameters
+
+## Note: Cloudflared uses a metrics service defined in templates/service.yaml
+
+## @section Application-specific parameters
+
+## @param logLevel The log level to use for the tunnel.
+##
+logLevel: info
+
+## @param managed.enabled Whether to enable Managed (CF Zero Trust Dashboard) tunnel configuration. Cannot coexist with the local one.
+## @param managed.token The connector token provided at the end of the CF Zero Trust tunnel creation.
+## @param managed.existingSecret The name of the existing secret containing the token. The secret key must be set to 'cf-tunnel-token'.
+##
+managed:
+  enabled: true
+  token: ""
+  existingSecret: ""
+
+## @param local.enabled Whether to enable Local (CLI) tunnel configuration. Cannot coexist with the managed one.
+## @param local.auth.tunnelID The Argo Tunnel ID you created. Check the configuration section for details.
+## @param local.auth.accountTag The Argo tunnel account tag.
+## @param local.auth.tunnelName The Argo tunnel name.
+## @param local.auth.tunnelSecret The Argo tunnel secret.
+## @param local.auth.existingSecret The name of an existing secret containing the Argo tunnel settings.
+## @param local.warpRouting Whether to enable WARP traffic routing to local subnets.
+## @param local.ingress The ingress settings to apply. Check the configuration section for examples.
+##
+local:
+  enabled: false
+  auth:
+    tunnelID: ""
+    accountTag: ""
+    tunnelName: ""
+    tunnelSecret: ""
+    existingSecret: ""
+  warpRouting: false
+  ingress: []
+
+## @section Monitoring parameters
+
+## @param metrics.enabled Add a ClusterIP Service for the Prometheus metrics on metrics.port.
+## @param metrics.port Port of cloudflared's local server; it serves /metrics and the /ready endpoint the probes use, whether or not metrics.enabled is set.
+##
+metrics:
+  enabled: false
+  port: 20241
+
+## @section Probe parameters
+
+## @param probes.liveness.enabled Enable the liveness probe.
+## @param probes.liveness.httpGetPath Liveness path; /ready answers 200 while at least one connection to Cloudflare is up.
+## @param probes.liveness.initialDelaySeconds Seconds before the first liveness probe.
+## @param probes.liveness.periodSeconds Seconds between liveness probes.
+## @param probes.liveness.failureThreshold Failures before the container restarts.
+## @param probes.liveness.timeoutSeconds Liveness probe timeout.
+## @param probes.readiness.enabled Enable the readiness probe.
+## @param probes.readiness.httpGetPath Readiness path.
+## @param probes.readiness.initialDelaySeconds Seconds before the first readiness probe.
+## @param probes.readiness.periodSeconds Seconds between readiness probes.
+## @param probes.readiness.failureThreshold Failures before the pod is marked unready.
+## @param probes.readiness.timeoutSeconds Readiness probe timeout.
+##
+probes:
+  liveness:
+    enabled: true
+    httpGetPath: /ready
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 5
+  readiness:
+    enabled: true
+    httpGetPath: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 5

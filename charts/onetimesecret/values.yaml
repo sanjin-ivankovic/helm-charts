@@ -1,0 +1,177 @@
+## Default values for One Time Secret
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: ghcr.io/onetimesecret/onetimesecret
+  tag: "v0.26.19@sha256:eb630051046042195a1dee73367f4f02a33ab3275bdc4d77a5d2c3dba88d3f0e"
+  pullPolicy: IfNotPresent
+
+## @param imagePullSecrets Secrets for pulling images.
+##
+imagePullSecrets: []
+
+## @section Name override parameters
+
+## @param nameOverride Override for the name.
+## @param fullnameOverride Override for the full name.
+##
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment.
+## @param podAnnotations Annotations to add to the pod.
+## @param priorityClassName The priority class name to use.
+##
+replicaCount: 1
+updateStrategy: {}
+# updateStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 1
+#     maxUnavailable: 0
+podAnnotations: {}
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod scheduling constraints.
+## @param tolerations Tolerations for the pods.
+## @param topologySpreadConstraints Spread constraints across failure-domains.
+##
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 50m
+    memory: 256Mi
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+
+## @section Security parameters
+
+## @param podSecurityContext Pod-level security context.
+## @param containerSecurityContext Container-level security context.
+##
+# Hardened defaults for PodSecurity "restricted". The image bakes user
+# appuser with uid/gid 1001; all app files are chowned to it, so no
+# root step is needed at startup. The only writable paths the web
+# process needs are /tmp and /app/tmp, provided as emptyDirs by the
+# deployment template — the root filesystem stays read-only.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Service parameters
+
+## @param service.type Service type.
+## @param service.port Service port (fronts the container port).
+## @param service.annotations Annotations to add to the service.
+## @param containerPort The port Puma listens on inside the container.
+##
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+containerPort: 3000
+
+## @section Application configuration parameters
+
+## @param config.host Public hostname used to build secret links (no scheme).
+## @param config.ssl Whether generated links use https. TLS usually
+##   terminates at the ingress; this only controls the link scheme.
+## @param config.rackEnv Rack environment the app runs in.
+## @param config.siteName Site name shown in the UI (empty keeps upstream default).
+## @param config.colonel Email address of the admin account (empty for none).
+## @param config.defaultTtl Default secret lifetime in seconds (empty keeps
+##   upstream default).
+## @param config.ttlOptions Space-separated TTL choices in seconds offered in
+##   the UI (empty keeps upstream default).
+## @param config.auth.enabled Enable the account subsystem.
+## @param config.auth.signup Allow new account registration.
+## @param config.auth.signin Allow signing in to existing accounts.
+## @param config.auth.autoverify Skip email verification on signup (needed
+##   when no SMTP is configured).
+## @param config.auth.required Require sign-in to create secrets. Viewing a
+##   received link never requires sign-in.
+##
+config:
+  host: "localhost:3000"
+  ssl: false
+  rackEnv: production
+  siteName: ""
+  colonel: ""
+  defaultTtl: ""
+  ttlOptions: ""
+  auth:
+    enabled: true
+    signup: true
+    signin: true
+    autoverify: false
+    required: false
+
+## @param extraEnv Additional non-sensitive plain env vars (map of name: value).
+##
+extraEnv: {}
+# extraEnv:
+#   I18N_ENABLED: "true"
+
+## @section Secret parameters
+
+## @param existingSecret Name of a Secret loaded via envFrom. Must provide
+##   SECRET (the encryption key — immutable once secrets have been created)
+##   and REDIS_URL (redis://:password@host:port/db).
+##
+existingSecret: ""
+
+## @section Health Probe parameters
+
+## @param livenessProbe Liveness probe configuration.
+## @param readinessProbe Readiness probe configuration.
+## @param startupProbe Startup probe configuration.
+##
+# /health is the lightweight liveness endpoint. /health/advanced also
+# checks RabbitMQ, which only exists in full-auth mode — do not point
+# probes at it here.
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+startupProbe:
+  httpGet:
+    path: /health
+    port: http
+  failureThreshold: 30
+  periodSeconds: 5

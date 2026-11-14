@@ -1,0 +1,27 @@
+Obsidian (linuxserver.io Selkies desktop) is deployed as {{ include "obsidian.fullname" . }}.
+
+1. Reach the desktop locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "obsidian.fullname" . }} 3000:{{ .Values.service.port }}
+  Open http://127.0.0.1:3000 (a reverse proxy must serve it over HTTPS for
+  normal use: the stream needs a secure browser context and WebSocket upgrades).
+{{- if not .Values.existingSecret }}
+
+WARNING: existingSecret is empty, so the desktop has NO authentication. Anyone
+who reaches it gets a shell in the container.
+{{- end }}
+{{- if .Values.couchdb.enabled }}
+
+2. CouchDB for Self-hosted LiveSync:
+  In-cluster URL: http://{{ include "obsidian.couchdb.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.couchdb.service.port }}
+  - A proxy in front of it must pass CORS preflights through; CouchDB answers
+    them for app://obsidian.md and capacitor://localhost.
+  - Never expose /_utils (Fauxton) to the internet.
+  - Turn on LiveSync end-to-end encryption with a passphrase.
+{{- if not .Values.couchdb.existingSecret }}
+
+WARNING: couchdb.existingSecret is empty. CouchDB 3 refuses to start without an
+admin user, so the CouchDB pod will exit.
+{{- end }}
+{{- end }}
+
+Note: Ingress/IngressRoute is managed separately in your ArgoCD applications.

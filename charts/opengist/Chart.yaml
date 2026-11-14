@@ -1,0 +1,22 @@
+apiVersion: v2
+name: opengist
+description: A Helm chart for OpenGist, a self-hosted pastebin powered by Git
+type: application
+version: 1.0.0
+appVersion: "1.15.3"
+kubeVersion: ">=1.19.0"
+keywords:
+  - opengist
+  - gist
+  - pastebin
+  - snippets
+  - git
+  - self-hosted
+home: https://opengist.io/
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/opengist
+  - https://github.com/thomiceli/opengist
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

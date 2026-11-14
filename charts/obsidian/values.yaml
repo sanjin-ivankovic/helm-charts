@@ -1,0 +1,278 @@
+## Default values for Obsidian
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from. GHCR returns release timestamps, which Renovate's soak needs; lscr.io does not.
+## @param image.tag The image tag to use, pinned by digest (tag@sha256:...).
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: ghcr.io/linuxserver/obsidian
+  tag: "1.15.0@sha256:c0e24740ba1518380f824e6e70f85655fd00e7ba3946866eab8f6bf5a3208af1"
+  pullPolicy: IfNotPresent
+
+## @section Name override parameters
+
+## @param nameOverride String to partially override the chart name.
+## @param fullnameOverride String to fully override the resource names.
+##
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy. One desktop session owns /config, so keep 1.
+## @param updateStrategy The update strategy for the deployment. Recreate while /config is ReadWriteOnce.
+## @param priorityClassName Priority class assigned to the pod.
+## @param enableServiceLinks Inject service-discovery environment variables into the pod.
+##
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+priorityClassName: ""
+enableServiceLinks: false
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the desktop container. The /dev/shm memory volume is charged to the memory limit.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints for pod distribution.
+##
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "3Gi"
+    cpu: "2000m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+
+## @section Security parameters
+
+## @param podSecurityContext Pod-level security context. The linuxserver s6-overlay init
+##   runs as root to chown /config and remap the abc user to PUID/PGID, then starts the
+##   desktop as that user; a non-root start aborts init.
+## @param containerSecurityContext Container-level security context. Verified minimal set
+##   against 1.15.0: s6 needs SETUID/SETGID to run services as PUID and nginx as www-data,
+##   CHOWN/DAC_OVERRIDE/FOWNER to fix /config ownership on a fresh volume (without
+##   DAC_OVERRIDE the desktop never starts; without FOWNER init logs permission errors),
+##   and KILL to stop the PUID-owned services (without it a stop waits out the grace
+##   period and ends in SIGKILL). The root filesystem stays writable because s6 and the
+##   desktop write under /run, /etc and $HOME at start.
+##
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  runAsGroup: 0
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  readOnlyRootFilesystem: false
+  privileged: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+      - KILL
+
+## @section Shared memory parameters
+
+## @param shmVolume.enabled Mount a memory-backed emptyDir at /dev/shm. Electron crashes on the 64Mi container default.
+## @param shmVolume.sizeLimit Size of the /dev/shm volume.
+##
+shmVolume:
+  enabled: true
+  sizeLimit: 1Gi
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target. 3000 is the image's plain-HTTP port; the proxy terminates TLS.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable the /config PVC (home directory: vaults, plugins, settings).
+## @param persistence.storageClass Storage class for the PVC (empty string = cluster default, "-" = no class).
+## @param persistence.mountPath Container path where the volume is mounted.
+## @param persistence.size Size of the volume.
+## @param persistence.accessModes Access modes for the volume.
+##
+persistence:
+  enabled: true
+  storageClass: ""
+  mountPath: /config
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env Non-secret environment variables (linuxserver.io / Selkies names).
+##
+env:
+  PUID: "1000"
+  PGID: "1000"
+  TZ: "Etc/UTC"
+  TITLE: "Obsidian"
+  HARDEN_DESKTOP: "true"
+  DISABLE_SUDO: "true"
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret holding the desktop's basic-auth login. Empty leaves the desktop without authentication.
+## @param secretKeys.user Key in existingSecret mapped to CUSTOM_USER.
+## @param secretKeys.password Key in existingSecret mapped to PASSWORD.
+##
+existingSecret: ""
+secretKeys:
+  user: username
+  password: password
+
+## @section Health Probe parameters
+
+## @param probes.startup Startup probe configuration. First boot unpacks the desktop profile.
+## @param probes.liveness Liveness probe configuration.
+## @param probes.readiness Readiness probe configuration.
+## TCP probes: with PASSWORD set, the image's nginx answers 401 on every path,
+## so an unauthenticated httpGet probe can never pass.
+##
+probes:
+  startup:
+    enabled: true
+    periodSeconds: 5
+    failureThreshold: 36
+    timeoutSeconds: 5
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 30
+    failureThreshold: 3
+    timeoutSeconds: 5
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 5
+
+## @section CouchDB parameters
+
+## @param couchdb.enabled Deploy a single-node CouchDB configured for Self-hosted LiveSync.
+## @param couchdb.image.repository CouchDB image repository.
+## @param couchdb.image.tag CouchDB image tag, pinned by digest.
+## @param couchdb.image.pullPolicy CouchDB image pull policy.
+## @param couchdb.replicaCount Number of CouchDB replicas. Single node only.
+## @param couchdb.updateStrategy CouchDB update strategy. Recreate while the data volume is ReadWriteOnce.
+## @param couchdb.priorityClassName Priority class for the CouchDB pod.
+## @param couchdb.nodeSelector Node selector for the CouchDB pod.
+## @param couchdb.affinity Affinity for the CouchDB pod.
+## @param couchdb.tolerations Tolerations for the CouchDB pod.
+## @param couchdb.resources Resource requests and limits for CouchDB.
+## @param couchdb.podSecurityContext Pod security context. The official image runs as uid 5984.
+## @param couchdb.containerSecurityContext Container security context. The root filesystem is
+##   read-only: local.d is an emptyDir (the entrypoint appends [admins] to local.d/docker.ini)
+##   and the LiveSync ini is a single read-only file in default.d.
+## @param couchdb.service.type CouchDB service type.
+## @param couchdb.service.port CouchDB service port.
+## @param couchdb.persistence.enabled Enable the CouchDB data PVC.
+## @param couchdb.persistence.storageClass Storage class for the PVC (empty string = cluster default, "-" = no class).
+## @param couchdb.persistence.mountPath CouchDB data directory.
+## @param couchdb.persistence.size Size of the data volume.
+## @param couchdb.persistence.accessModes Access modes for the data volume.
+## @param couchdb.existingSecret Name of an existing secret holding the CouchDB admin login. Required: CouchDB 3 refuses to start without an admin.
+## @param couchdb.secretKeys.user Key in couchdb.existingSecret mapped to COUCHDB_USER.
+## @param couchdb.secretKeys.password Key in couchdb.existingSecret mapped to COUCHDB_PASSWORD.
+## @param couchdb.config.livesync Render the LiveSync settings (single node, auth required, size limits, CORS for Obsidian clients).
+## @param couchdb.config.extraIni Extra ini text appended to the rendered config file.
+## @param couchdb.probes.startup CouchDB startup probe.
+## @param couchdb.probes.liveness CouchDB liveness probe.
+## @param couchdb.probes.readiness CouchDB readiness probe.
+## The probes use GET /_up, which require_valid_user_except_for_up leaves open.
+##
+couchdb:
+  enabled: true
+  image:
+    repository: couchdb
+    tag: "3.5.3@sha256:907eab5b7e55ab7cfd241d39b90b2a335ea40bef82acee5a37388c08bf201dda"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  updateStrategy:
+    type: Recreate
+  priorityClassName: ""
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 5984
+    runAsGroup: 5984
+    fsGroup: 5984
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  service:
+    type: ClusterIP
+    port: 5984
+  persistence:
+    enabled: true
+    storageClass: ""
+    mountPath: /opt/couchdb/data
+    size: 10Gi
+    accessModes:
+      - ReadWriteOnce
+  existingSecret: ""
+  secretKeys:
+    user: username
+    password: password
+  config:
+    livesync: true
+    extraIni: ""
+  probes:
+    startup:
+      enabled: true
+      periodSeconds: 5
+      failureThreshold: 24
+      timeoutSeconds: 5
+    liveness:
+      enabled: true
+      initialDelaySeconds: 0
+      periodSeconds: 30
+      failureThreshold: 3
+      timeoutSeconds: 5
+    readiness:
+      enabled: true
+      initialDelaySeconds: 0
+      periodSeconds: 10
+      failureThreshold: 3
+      timeoutSeconds: 5
