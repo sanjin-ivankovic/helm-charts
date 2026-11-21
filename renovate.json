@@ -1,0 +1,187 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for homelab Helm charts with automated chart version bumping",
+  "dependencyDashboard": {
+    "title": "Renovate Dashboard: Helm Charts",
+    "header": "Tracks dependency updates for the homelab Helm charts.\n\n**After merging**: CI publishes updated charts to the [OCI registry](https://registry.example.com/example-org/helm-charts); [argo-apps](https://source.example.com/example-org/argo-apps) picks them up on its next Renovate run.\n\n---",
+    "footer": "---\n\n**Resources**: [OCI Registry](https://registry.example.com/example-org/helm-charts) | [Renovate Config](https://source.example.com/example-org/helm-charts/-/blob/main/renovate.json) | [CLAUDE.md](https://source.example.com/example-org/helm-charts/-/blob/main/.claude/CLAUDE.md)"
+  },
+  "extends": [
+    "local>homelab/renovate",
+    "local>homelab/renovate:dockerfile-args",
+    "local>homelab/renovate:ci-components",
+    "local>homelab/renovate:ci-variables",
+    "local>homelab/renovate:lane-fast({charts/searxng/**,.pre-commit-config.yaml})",
+    "local>homelab/renovate:lane-standard(charts/{stirling-pdf,privatebin,onetimesecret,cloudflare-ddns}/**)",
+    "local>homelab/renovate:lane-careful(charts/{actual,docmost,docuseal,ntfy,obsidian,opengist,silverbullet}/**)",
+    "local>homelab/renovate:lane-critical(charts/{postgresql,valkey,cloudflared}/**)"
+  ],
+  "ignorePaths": [
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/test/**",
+    "**/tests/**",
+    ".archive/**",
+    "**/.archive/**",
+    ".ci/scaffold/**"
+  ],
+  "enabledManagers": [
+    "helm-values",
+    "custom.regex",
+    "dockerfile",
+    "gitlabci",
+    "pre-commit"
+  ],
+  "packageRules": [
+    {
+      "description": "Docker digest pinning - Pin floating tags to reproducible digests",
+      "matchFileNames": [
+        "charts/**/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "pin"
+      ],
+      "groupName": "pin-docker-digests",
+      "commitMessagePrefix": "fix(docker):",
+      "labels": [
+        "docker",
+        "pinning"
+      ],
+      "prPriority": 8
+    },
+    {
+      "description": "Allow unstable versions for SearXNG (rolling release tags)",
+      "matchPackageNames": [
+        "searxng/searxng"
+      ],
+      "versioning": "loose",
+      "ignoreUnstable": false
+    },
+    {
+      "description": "PostgreSQL server image - cap at major 18. A Postgres major is a data-format migration (dump/restore runbook in argo-apps), never an unattended bump; raise together with argo-apps' postgres-db-create-jobs '<19' cap. The backup CronJob shares image.* with the server on purpose, so no sub-image exclusion is needed for this chart.",
+      "matchFileNames": [
+        "charts/postgresql/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "postgres"
+      ],
+      "allowedVersions": "<19"
+    },
+    {
+      "description": "Valkey server image - cap at major 9. Shared-instance data (job queues, app state) makes a major a planned migration, never an unattended bump; the backup CronJob shares image.* with the server on purpose, so no sub-image exclusion is needed for this chart.",
+      "matchFileNames": [
+        "charts/valkey/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "valkey/valkey"
+      ],
+      "allowedVersions": "<10"
+    },
+    {
+      "description": "CouchDB (obsidian chart) - cap at major 3. A CouchDB major changes the on-disk format and config layout, so it is a planned migration, never an unattended bump.",
+      "matchFileNames": [
+        "charts/obsidian/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "couchdb"
+      ],
+      "allowedVersions": "<4"
+    },
+    {
+      "description": "PRIMARY chart image VERSION updates (tag bumps) - bumps the chart version by the image's update type (patch, minor or major), so argo-apps sees the real update type on the chart pin and applies its lane; rewrites appVersion. The sed is unconditional within its branch, so this rule must exclude every init/sidecar sub-image (see the sub-image rule below) — otherwise whichever image bumped last writes ITS tag into appVersion (busybox once overwrote pgadmin's).",
+      "matchFileNames": [
+        "charts/*/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch"
+      ],
+      "matchPackageNames": [
+        "!busybox",
+        "!couchdb"
+      ],
+      "commitMessagePrefix": "chore({{parentDir}}):",
+      "labels": [
+        "docker"
+      ],
+      "prPriority": 20,
+      "groupName": "{{parentDir}}",
+      "groupSlug": "chart-{{parentDir}}",
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "{{packageFileDir}}/Chart.{yaml,yml}"
+          ],
+          "matchStrings": [
+            "version:\\s*[\"']?(?<version>[^\"'\\s]+)[\"']?"
+          ],
+          "bumpType": "{{#if isMajor}}major{{else}}{{#if isMinor}}minor{{else}}patch{{/if}}{{/if}}"
+        }
+      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "sed -i 's/^appVersion:.*/appVersion: \"{{{newVersion}}}\"/' {{{packageFileDir}}}/Chart.yaml"
+        ],
+        "fileFilters": [
+          "charts/*/Chart.yaml"
+        ],
+        "executionMode": "branch"
+      }
+    },
+    {
+      "description": "Init/sidecar SUB-IMAGE tag bumps - same per-chart grouping and update-type chart bump as the primary rule, but NO appVersion rewrite (appVersion tracks the primary application image only). Add any new init/sidecar image name here AND to the exclusion in the primary rule above.",
+      "matchFileNames": [
+        "charts/*/values.yaml"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch"
+      ],
+      "matchPackageNames": [
+        "busybox",
+        "couchdb"
+      ],
+      "commitMessagePrefix": "chore({{parentDir}}):",
+      "labels": [
+        "docker"
+      ],
+      "prPriority": 20,
+      "groupName": "{{parentDir}}",
+      "groupSlug": "chart-{{parentDir}}",
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "{{packageFileDir}}/Chart.{yaml,yml}"
+          ],
+          "matchStrings": [
+            "version:\\s*[\"']?(?<version>[^\"'\\s]+)[\"']?"
+          ],
+          "bumpType": "{{#if isMajor}}major{{else}}{{#if isMinor}}minor{{else}}patch{{/if}}{{/if}}"
+        }
+      ]
+    }
+  ],
+  "prFooter": "This MR was created automatically by Renovate. Review changes carefully before merging.\n\n**After merging**: The CI/CD pipeline will publish updated charts to the [OCI registry](https://registry.example.com/example-org/helm-charts)."
+}

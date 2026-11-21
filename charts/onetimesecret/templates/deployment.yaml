@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "onetimesecret.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "onetimesecret.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "onetimesecret.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicaCount | int }}
+  {{- with .Values.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "onetimesecret.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "onetimesecret.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The image ENTRYPOINT is s6-overlay's /init, whose default service
+          # bundle also starts the worker and scheduler — both require
+          # RabbitMQ (full-auth mode only) and crash-loop without it. Running
+          # the web entrypoint directly starts Puma alone; upstream's own
+          # docker-compose does the same.
+          command: ["bin/entrypoint.sh"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort | int }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.containerPort | quote }}
+            - name: HOST
+              value: {{ .Values.config.host | quote }}
+            - name: SSL
+              value: {{ .Values.config.ssl | quote }}
+            - name: RACK_ENV
+              value: {{ .Values.config.rackEnv | quote }}
+            - name: AUTH_ENABLED
+              value: {{ .Values.config.auth.enabled | quote }}
+            - name: AUTH_SIGNUP
+              value: {{ .Values.config.auth.signup | quote }}
+            - name: AUTH_SIGNIN
+              value: {{ .Values.config.auth.signin | quote }}
+            - name: AUTH_AUTOVERIFY
+              value: {{ .Values.config.auth.autoverify | quote }}
+            - name: AUTH_REQUIRED
+              value: {{ .Values.config.auth.required | quote }}
+            {{- with .Values.config.siteName }}
+            - name: SITE_NAME
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.colonel }}
+            - name: COLONEL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.defaultTtl }}
+            - name: DEFAULT_TTL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.ttlOptions }}
+            - name: TTL_OPTIONS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- range $key, $value := .Values.extraEnv }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.existingSecret }}
+          # SECRET (encryption key, immutable once secrets exist) and
+          # REDIS_URL (with password) come from the sealed secret.
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            # Ruby/Puma scratch space; the only writable paths the web
+            # process needs, so the root filesystem can stay read-only.
+            - name: tmp
+              mountPath: /tmp
+            - name: app-tmp
+              mountPath: /app/tmp
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-tmp
+          emptyDir: {}

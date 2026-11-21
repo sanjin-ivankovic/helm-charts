@@ -1,0 +1,26 @@
+{{- if and .Values.couchdb.enabled .Values.couchdb.persistence.enabled }}
+{{- $p := .Values.couchdb.persistence }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "obsidian.couchdb.pvcName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "obsidian.labels" . | nindent 4 }}
+    app.kubernetes.io/component: couchdb
+spec:
+  accessModes:
+    {{- range $p.accessModes }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- if $p.storageClass }}
+  {{- if (eq "-" $p.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ $p.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $p.size | quote }}
+{{- end }}

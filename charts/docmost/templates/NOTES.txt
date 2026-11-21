@@ -1,0 +1,15 @@
+Docmost is deployed as {{ include "docmost.fullname" . }}.
+
+1. Reach it locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "docmost.fullname" . }} 3000:{{ .Values.service.port }}
+  Open http://127.0.0.1:3000/setup/register once to create the workspace and its owner.
+{{- if not .Values.existingSecret }}
+
+WARNING: existingSecret is empty. Docmost needs APP_SECRET, DATABASE_URL and
+REDIS_URL and will not start without them.
+{{- end }}
+{{- if not .Values.env.APP_URL }}
+
+NOTE: env.APP_URL is not set; invite links and the collaboration WebSocket
+URL point at the default, not the public URL.
+{{- end }}

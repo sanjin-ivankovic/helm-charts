@@ -1,0 +1,210 @@
+{{- if hasKey .Values "redis" }}
+{{- fail "searxng: values key redis.url is valkey.url" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "searxng.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "searxng.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "searxng.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicaCount | int }}
+  {{- $updateStrategy := .Values.updateStrategy }}
+  {{- if and $updateStrategy (kindIs "map" $updateStrategy) (hasKey $updateStrategy "type") }}
+  # User-defined update strategy
+  strategy:
+    {{- toYaml $updateStrategy | nindent 4 }}
+  {{- else if .Values.persistence.enabled }}
+  # Default strategy for ReadWriteOnce PVCs: terminate old pod before starting new one
+  # This prevents Multi-Attach errors by ensuring old pod terminates before new one starts
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "searxng.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.initContainer.enabled }}
+      initContainers:
+        - name: config-init
+          image: {{ .Values.initContainer.image }}
+          {{- with .Values.initContainer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              # The volumes mount at their root here; SearXNG gets the
+              # subdirectories made below (subPath). The kubelet creates a
+              # volume root as root:<fsGroup>, which the image's entrypoint
+              # reports as wrong ownership, while a directory made by this
+              # non-root container is owned by searxng:searxng.
+              mkdir -p /mnt/config/searxng /mnt/cache/searxng
+              cat > /mnt/config/searxng/settings.yml <<EOF
+              use_default_settings: true
+              server:
+                port: 8080
+                bind_address: "0.0.0.0"
+                secret_key: "${SECRET_KEY}"
+              {{- with .Values.general.contactUrl }}
+              general:
+                contact_url: {{ . | quote }}
+              {{- end }}
+              valkey:
+                url: redis://:${REDIS_PASSWORD}@{{ trimPrefix "redis://" .Values.valkey.url }}
+              search:
+                formats: {{ .Values.search.formats | toJson }}
+              {{- if .Values.engines }}
+              engines:
+              {{- range $engine := .Values.engines }}
+                - name: {{ $engine.name | quote }}
+                {{- range $key, $value := omit $engine "name" "apiKeySecretKey" }}
+                  {{ $key }}: {{ $value | toJson }}
+                {{- end }}
+                {{- if $engine.apiKeySecretKey }}
+                  {{- /* Expanded by the shell from an env var so the key never
+                         appears in the rendered manifest or in ArgoCD diffs. */}}
+                  api_key: "${ENGINE_API_KEY_{{ $engine.name | upper | replace "." "_" | replace "-" "_" }}}"
+                {{- end }}
+              {{- end }}
+              {{- end }}
+              EOF
+              # Defaults apply with the limiter off; the file only stops
+              # SearXNG warning that it is missing.
+              : > /mnt/config/searxng/limiter.toml
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.keys.valkeyPassword }}
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.keys.secretKey }}
+            {{- range $engine := .Values.engines }}
+            {{- if $engine.apiKeySecretKey }}
+            - name: ENGINE_API_KEY_{{ $engine.name | upper | replace "." "_" | replace "-" "_" }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $engine.apiKeySecretName | default $.Values.secrets.secretName }}
+                  key: {{ $engine.apiKeySecretKey }}
+            {{- end }}
+            {{- end }}
+          volumeMounts:
+            - name: searxng-writable-config
+              mountPath: /mnt/config
+            - name: {{ ternary "searxng-data" "searxng-cache" .Values.persistence.enabled }}
+              mountPath: /mnt/cache
+            - name: tmp
+              mountPath: /tmp
+      {{- end }}
+      containers:
+        - name: {{ include "searxng.name" . }}
+          image: "{{ .Values.image.repository }}{{- if .Values.image.tag }}:{{ .Values.image.tag }}{{- end }}{{- if .Values.image.digest }}@{{ .Values.image.digest }}{{- end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: SEARXNG_PORT
+              value: {{ .Values.service.targetPort | quote }}
+            - name: SEARXNG_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.keys.baseUrl }}
+            - name: UWSGI_WORKERS
+              value: {{ .Values.env.uwsgiWorkers | quote }}
+            - name: UWSGI_THREADS
+              value: {{ .Values.env.uwsgiThreads | quote }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: searxng-writable-config
+              mountPath: /etc/searxng
+              {{- if .Values.initContainer.enabled }}
+              subPath: searxng
+              {{- end }}
+            # The root filesystem is read-only; SearXNG keeps its SQLite
+            # engine and data caches in /tmp.
+            - name: tmp
+              mountPath: /tmp
+            - name: {{ ternary "searxng-data" "searxng-cache" .Values.persistence.enabled }}
+              mountPath: /var/cache/searxng
+              {{- if .Values.initContainer.enabled }}
+              subPath: searxng
+              {{- end }}
+          {{- range $kind, $p := .Values.probes }}
+          {{- if $p.enabled }}
+          {{ $kind }}Probe:
+            httpGet:
+              path: {{ $p.path }}
+              port: http
+              httpHeaders:
+                - name: X-Real-IP
+                  value: 127.0.0.1
+            initialDelaySeconds: {{ $p.initialDelaySeconds }}
+            periodSeconds: {{ $p.periodSeconds }}
+            failureThreshold: {{ $p.failureThreshold }}
+            timeoutSeconds: {{ $p.timeoutSeconds }}
+          {{- end }}
+          {{- end }}
+      volumes:
+        - name: searxng-writable-config
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.persistence.enabled }}
+        - name: searxng-data
+          persistentVolumeClaim:
+            claimName: {{ include "searxng.pvcName" . }}
+        {{- else }}
+        - name: searxng-cache
+          emptyDir: {}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

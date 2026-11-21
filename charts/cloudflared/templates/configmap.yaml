@@ -1,0 +1,17 @@
+{{- if .Values.local.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cloudflared.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cloudflared.labels" . | nindent 4 }}
+data:
+  config.yaml: |-
+    logDirectory: /var/log/cloudflared
+    tunnel: {{ required "The Argo Tunnel ID is missing." .Values.local.auth.tunnelID }}
+    credentials-file: /etc/cloudflared/tunnel-config.json
+    warp-routing:
+      enabled: {{ .Values.local.warpRouting }}
+    ingress: {{ toYaml .Values.local.ingress | nindent 6 }}
+{{- end }}

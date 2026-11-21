@@ -1,0 +1,20 @@
+apiVersion: v2
+name: silverbullet
+description: A Helm chart for SilverBullet, a self-hosted Markdown notes server with live sync across browsers
+type: application
+version: 1.0.1
+appVersion: "2.12.1"
+kubeVersion: ">=1.19.0"
+keywords:
+  - silverbullet
+  - notes
+  - markdown
+  - self-hosted
+home: https://silverbullet.md/
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/silverbullet
+  - https://github.com/silverbulletmd/silverbullet
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts
