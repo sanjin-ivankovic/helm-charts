@@ -1,0 +1,128 @@
+## Default values for actual (Actual Budget sync server)
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use, pinned by digest (tag@sha256:...).
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: ghcr.io/actualbudget/actual-server
+  tag: "26.11.0@sha256:06cf186569cf58d93e12659ff1a517b65b5b0ebee7050a3991d4bd8a1d398da6"
+  pullPolicy: IfNotPresent
+
+## @param nameOverride String to partially override the chart name.
+## @param fullnameOverride String to fully override the resource names.
+##
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment. Recreate while the data volume is ReadWriteOnce.
+## @param priorityClassName Priority class assigned to the pod.
+##
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the container.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints for pod distribution.
+##
+resources:
+  requests:
+    memory: "160Mi"
+    cpu: "50m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+
+## @section Security parameters
+
+## @param podSecurityContext Pod-level security context. The image ships user actual (1001) but sets no USER, so the uid is pinned here.
+## @param securityContext Container-level security context. /tmp is an emptyDir mount, so the root filesystem stays read-only.
+##
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5006
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable the data PVC.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.mountPath Container path where the data volume is mounted. Actual keeps server-files/ (account.sqlite) and user-files/ (budget blobs) here.
+## @param persistence.size Size of the data volume.
+## @param persistence.accessModes Access modes for the data volume.
+##
+persistence:
+  enabled: true
+  storageClass: ""
+  mountPath: /data
+  size: 2Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env Non-secret environment variables passed to the container.
+##
+env: {}
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret whose keys are exposed as environment variables. Empty adds none.
+##
+existingSecret: ""
+
+## @section Health Probe parameters
+
+## @param probes.liveness Liveness probe configuration. Migrations run before the server listens, so the default budget (15s + 5 x 30s) also covers an upgrade.
+## @param probes.readiness Readiness probe configuration.
+##
+probes:
+  liveness:
+    enabled: true
+    httpGetPath: /health
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    failureThreshold: 5
+    timeoutSeconds: 5
+  readiness:
+    enabled: true
+    httpGetPath: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 6
+    timeoutSeconds: 5

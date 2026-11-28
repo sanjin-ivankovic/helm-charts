@@ -1,0 +1,145 @@
+{{- if .Values.couchdb.enabled }}
+{{- $c := .Values.couchdb }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "obsidian.couchdb.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "obsidian.labels" . | nindent 4 }}
+    app.kubernetes.io/component: couchdb
+spec:
+  replicas: {{ $c.replicaCount | int }}
+  selector:
+    matchLabels:
+      {{- include "obsidian.couchdb.selectorLabels" . | nindent 6 }}
+  {{- with $c.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "obsidian.couchdb.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/couchdb-configmap.yaml") . | sha256sum }}
+    spec:
+      enableServiceLinks: {{ .Values.enableServiceLinks }}
+      {{- with $c.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with $c.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: couchdb
+          image: "{{ $c.image.repository }}:{{ $c.image.tag }}"
+          imagePullPolicy: {{ $c.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 5984
+              protocol: TCP
+          {{- /* NODENAME, COUCHDB_SECRET and COUCHDB_ERLANG_COOKIE are left
+                 unset on purpose: the entrypoint writes them under the
+                 read-only root filesystem. */}}
+          {{- if $c.existingSecret }}
+          env:
+            - name: COUCHDB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $c.existingSecret }}
+                  key: {{ $c.secretKeys.user }}
+            - name: COUCHDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $c.existingSecret }}
+                  key: {{ $c.secretKeys.password }}
+          {{- end }}
+          {{- with $c.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.probes.startup }}
+          {{- if .enabled }}
+          startupProbe:
+            httpGet:
+              path: /_up
+              port: http
+            periodSeconds: {{ .periodSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+          {{- end }}
+          {{- end }}
+          {{- with $c.probes.liveness }}
+          {{- if .enabled }}
+          livenessProbe:
+            httpGet:
+              path: /_up
+              port: http
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+          {{- end }}
+          {{- end }}
+          {{- with $c.probes.readiness }}
+          {{- if .enabled }}
+          readinessProbe:
+            httpGet:
+              path: /_up
+              port: http
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+          {{- end }}
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            # The entrypoint touches local.d/docker.ini and appends [admins];
+            # CouchDB writes runtime _config changes to the last ini in the
+            # chain. Rebuilt from the Secret on every start.
+            - name: local-d
+              mountPath: /opt/couchdb/etc/local.d
+            # One file into the image's default.d: sorts after
+            # 10-docker-default.ini and loads before local.d.
+            - name: config
+              mountPath: /opt/couchdb/etc/default.d/20-livesync.ini
+              subPath: 20-livesync.ini
+              readOnly: true
+            {{- if $c.persistence.enabled }}
+            - name: data
+              mountPath: {{ $c.persistence.mountPath }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: local-d
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "obsidian.couchdb.fullname" . }}-config
+        {{- if $c.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "obsidian.couchdb.pvcName" . }}
+        {{- end }}
+      {{- with $c.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $c.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $c.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

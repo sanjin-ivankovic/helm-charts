@@ -1,0 +1,16 @@
+---
+# Exceptions to the homelab repo standard (ci-components
+# docs/REPO-STANDARD.md), checked by the lint:repo-standard job. Each reason
+# starts with accepted:, fix: or investigate:. An entry whose rule passes
+# fails the check, so remove it with the fix.
+exceptions:
+  config-drift:
+    .config/.yamllint: >-
+      accepted: ignores the Go-templated chart files, which are not
+      valid YAML before rendering
+    .config/.markdownlint-cli2.jsonc: >-
+      accepted: ignores generated sanitize and coverage reports and
+      allows go-template fences
+    .config/.gitleaks.toml: >-
+      accepted: rules for Helm values (registry and database passwords),
+      not for Kubernetes manifests

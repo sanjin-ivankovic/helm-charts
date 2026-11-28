@@ -1,0 +1,16 @@
+# Exceptions to docs/CHARTS.md, checked by
+# .ci/scripts/check_chart_standard.py (make check-standard, CI
+# validate:standard). One entry per chart and rule, with the reason:
+#   accepted:    a deliberate deviation; the reason says why the rule cannot hold
+#   fix:         a defect; the follow-up MR that fixes it removes the entry
+#   investigate: needs a test against the running app before it is fixed or accepted
+# An entry whose rule passes fails the check, so remove it with the fix.
+exceptions:
+  cloudflare-ddns:
+    probes: "accepted: the updater has no HTTP or health endpoint to probe"
+  obsidian:
+    pod-non-root: "accepted: the linuxserver s6-overlay init starts as root to chown /config and remap the desktop user to PUID/PGID, then drops to it; a non-root start aborts init"
+    read-only-rootfs: "accepted: s6-overlay writes /run and /etc at start and the desktop writes under its home and system paths, with no documented writable-path list to back with emptyDirs"
+  stirling-pdf:
+    pod-non-root: "accepted: the init script starts as root and drops privileges itself (Java as ubuntu, LibreOffice as a separate user); starting non-root disables that LibreOffice sandbox"
+    read-only-rootfs: "investigate: the root init script chowns paths and writes Python caches; test a read-only root locally before changing the live app"

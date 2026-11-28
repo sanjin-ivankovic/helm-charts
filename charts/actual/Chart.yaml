@@ -1,0 +1,20 @@
+apiVersion: v2
+name: actual
+description: A Helm chart for Actual Budget, a local-first personal finance app and sync server
+type: application
+version: 1.0.0
+appVersion: "26.11.0"
+kubeVersion: ">=1.19.0"
+keywords:
+  - actual
+  - budget
+  - finance
+  - self-hosted
+home: https://actualbudget.org/
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/actual
+  - https://github.com/actualbudget/actual
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

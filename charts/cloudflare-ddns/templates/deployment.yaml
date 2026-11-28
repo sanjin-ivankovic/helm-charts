@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloudflare-ddns.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cloudflare-ddns.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "cloudflare-ddns.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicaCount | int }}
+  {{- with .Values.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "cloudflare-ddns.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ include "cloudflare-ddns.name" . }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        # The app has no listening port, health endpoint, or metrics endpoint,
+        # so there are no ports and no probes to declare.
+        env:
+        {{- range $key, $value := .Values.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- if .Values.existingSecret }}
+        # Read the token from a mounted file rather than an env value, so it
+        # does not appear in the pod spec or `kubectl describe pod`.
+        - name: CLOUDFLARE_API_TOKEN_FILE
+          value: {{ printf "%s/%s" .Values.secretMountPath .Values.secretKeys.apiToken | quote }}
+        {{- end }}
+        volumeMounts:
+        # Writable /tmp so the container can run with a read-only root filesystem.
+        - mountPath: /tmp
+          name: tmp
+        {{- if .Values.existingSecret }}
+        - mountPath: {{ .Values.secretMountPath }}
+          name: api-token
+          readOnly: true
+        {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      {{- if .Values.existingSecret }}
+      - name: api-token
+        secret:
+          # 0440 so the token is readable by uid/gid 1000 but not world-readable.
+          defaultMode: 0440
+          optional: false
+          secretName: {{ .Values.existingSecret }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

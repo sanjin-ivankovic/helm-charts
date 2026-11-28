@@ -1,0 +1,130 @@
+## Default values for silverbullet (SilverBullet server, multi-space mode)
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from.
+## @param image.tag The image tag to use, pinned by digest (tag@sha256:...). The -slim variant omits the headless Chromium that only the Runtime API uses.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: ghcr.io/silverbulletmd/silverbullet
+  tag: "2.12.1-slim@sha256:7e24c16d31a3f4b4a4832ed64ec585e605a1e275b7c35917d385176f0b40415c"
+  pullPolicy: IfNotPresent
+
+## @param nameOverride String to partially override the chart name.
+## @param fullnameOverride String to fully override the resource names.
+##
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy.
+## @param updateStrategy The update strategy for the deployment. Recreate while the data volume is ReadWriteOnce.
+## @param priorityClassName Priority class assigned to the pod.
+##
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources Resource requests and limits for the container.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity Pod affinity configuration.
+## @param tolerations Pod tolerations configuration.
+## @param topologySpreadConstraints Topology spread constraints for pod distribution.
+##
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "25m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+
+## @section Security parameters
+
+## @param podSecurityContext Pod-level security context. Started as non-root, the entrypoint skips its PUID/PGID user creation and execs the server directly; fsGroup makes /data writable.
+## @param securityContext Container-level security context. /tmp is an emptyDir mount, so the root filesystem stays read-only.
+##
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Service parameters
+
+## @param service.type The Kubernetes service type.
+## @param service.port The service port.
+## @param service.targetPort The container port to target.
+##
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+## @section Storage parameters
+
+## @param persistence.enabled Enable the data PVC.
+## @param persistence.storageClass Storage class for the PVC (empty string = use cluster default).
+## @param persistence.mountPath Container path where the data volume is mounted. Holds accounts, sessions, OIDC client settings and the spaces, so it is the whole server state.
+## @param persistence.size Size of the data volume.
+## @param persistence.accessModes Access modes for the data volume.
+##
+persistence:
+  enabled: true
+  storageClass: ""
+  mountPath: /data
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+## @section Environment variables
+
+## @param env Non-secret environment variables passed to the container (SB_*). SB_SHELL_BACKEND=off disables server-side shell commands for every space. SB_FOLDER is a subdirectory of the volume: the volume root holds lost+found, which SilverBullet counts as content, so it boots legacy single-space mode with no login instead of the setup wizard.
+##
+env:
+  SB_SHELL_BACKEND: "off"
+  SB_FOLDER: /data/silverbullet
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret whose keys are exposed as environment variables. Empty adds none.
+##
+existingSecret: ""
+
+## @section Health Probe parameters
+
+## @param probes.liveness Liveness probe configuration. /.instance answers without a login both in first-run setup mode and once configured; /.ping redirects to the wizard until setup completes.
+## @param probes.readiness Readiness probe configuration.
+##
+probes:
+  liveness:
+    enabled: true
+    httpGetPath: /.instance
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    failureThreshold: 5
+    timeoutSeconds: 5
+  readiness:
+    enabled: true
+    httpGetPath: /.instance
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 6
+    timeoutSeconds: 5

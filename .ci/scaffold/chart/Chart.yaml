@@ -1,0 +1,17 @@
+apiVersion: v2
+name: chartname
+description: A Helm chart for chartname
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.19.0"
+keywords:
+  - chartname
+  - self-hosted
+home: https://example.com/
+sources:
+  - https://source.example.com/example-org/helm-charts/-/tree/main/charts/chartname
+maintainers:
+  - name: maintainer
+    email: maintainer@example.com
+    url: https://source.example.com/example-org/helm-charts

@@ -1,0 +1,104 @@
+## Default values for Cloudflare DDNS
+
+## @section Image parameters
+
+## @param image.repository The Docker repository to pull the image from. Upstream publishes to Docker Hub only; there is no ghcr.io image.
+## @param image.tag The image tag to use.
+## @param image.pullPolicy The logic of image pulling.
+##
+image:
+  repository: favonia/cloudflare-ddns
+  tag: "1.18.0@sha256:345b41895a8846d74c62d30bd27e61101a754f8ab8da10c68115823883803afb"
+  pullPolicy: IfNotPresent
+
+## @section Name override parameters
+
+## @param nameOverride Overrides the chart name used in resource names and labels.
+## @param fullnameOverride Overrides the fully qualified resource name.
+##
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Deployment parameters
+
+## @param replicaCount The number of replicas to deploy. Upstream has no leader election or sharding, so two replicas would concurrently write the same DNS records and consume the Cloudflare rate limit. Keep this at 1.
+## @param updateStrategy The update strategy for the deployment. Recreate avoids the overlap window in which a rolling update would briefly run two updaters.
+## @param podAnnotations Annotations to add to the pod.
+## @param priorityClassName The priority class name to use for the updater.
+##
+replicaCount: 1
+updateStrategy:
+  type: Recreate
+podAnnotations: {}
+priorityClassName: ""
+
+## @section Pod spec parameters
+
+## @param resources If specified, it sets the resource requests and limits for the pod.
+## @param nodeSelector Node selector for pod placement.
+## @param affinity If specified, the pod's scheduling constraints. Affinity is a group of affinity scheduling rules.
+## @param tolerations Tolerates any taint that matches the triple `<key,value,effect>` using the matching operator `<operator>`.
+## @param topologySpreadConstraints Control how pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains.
+##
+resources:
+  limits:
+    cpu: 100m
+    memory: 64Mi
+  requests:
+    cpu: 10m
+    memory: 16Mi
+nodeSelector: {}
+affinity: {}
+tolerations: []
+topologySpreadConstraints: []
+
+## @section Security parameters
+
+## @param podSecurityContext Pod-level security context. The upstream image sets `USER 1000:1000` and ships a static CGO-disabled Go binary, so it runs unprivileged with no capabilities and a read-only root filesystem (only /tmp is a writable emptyDir).
+## @param securityContext Container-level security context (read-only rootfs, drop all capabilities, no privilege escalation).
+##
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+## @section Environment variables
+
+## @param env Application environment variables, passed through verbatim using the upstream names. See <https://github.com/favonia/cloudflare-ddns> for the full list.
+## @param env.DOMAINS Comma-separated list of domains to keep updated. Required.
+## @param env.PROXIED Whether the records are proxied through the Cloudflare edge.
+## @param env.IP6_PROVIDER Where to detect the IPv6 address. Set to `none` on IPv4-only clusters; `none` preserves existing AAAA records rather than deleting them.
+##
+env:
+  DOMAINS: ""
+  PROXIED: "false"
+  IP6_PROVIDER: "none"
+# Other upstream variables worth knowing (defaults shown):
+#   IP4_PROVIDER: "cloudflare.trace"   # or cloudflare.doh / local / none
+#   UPDATE_CRON: "@every 5m"           # @once turns the pod into a one-shot run
+#   UPDATE_ON_START: "true"
+#   DELETE_ON_STOP: "false"            # true deletes records on every eviction
+#   CACHE_EXPIRATION: "6h"
+#   TTL: "1"                           # 1 = automatic
+#   TZ: "UTC"
+#   HEALTHCHECKS: ""                   # outbound ping URL (healthchecks.io)
+
+## @section Secret parameters
+
+## @param existingSecret Name of an existing secret holding the Cloudflare API token. When set, the token is mounted as a file and passed via CLOUDFLARE_API_TOKEN_FILE so it stays out of the pod environment.
+## @param secretKeys.apiToken Key in the existing secret holding the API token.
+## @param secretMountPath Directory the token secret is mounted into.
+##
+existingSecret: ""
+secretKeys:
+  apiToken: "api-token"
+secretMountPath: /secrets
